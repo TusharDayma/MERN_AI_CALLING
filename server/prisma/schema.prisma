@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  HR
+}
+
+enum UserStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+enum ResetStatus {
+  PENDING
+  RESOLVED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum QuestionLevel {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum CandidateStatus {
+  PENDING
+  SCREENED
+  COMPLETED
+}
+
+model User {
+  id              String           @id @default(uuid())
+  name            String
+  username        String           @unique
+  email           String           @unique
+  password_hash   String
+  role            Role             @default(HR)
+  status          UserStatus       @default(ACTIVE)
+  is_deleted      Boolean          @default(false)
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+
+  passwordResets  PasswordReset[]
+  jobRoles        JobRole[]
+  campaigns       Campaign[]
+  
+  @@map("users")
+}
+
+model PasswordReset {
+  id          String      @id @default(uuid())
+  user_id     String
+  status      ResetStatus @default(PENDING)
+  created_at  DateTime    @default(now())
+
+  user        User        @relation(fields: [user_id], references: [id])
+  
+  @@map("password_resets")
+}
+
+model JobRole {
+  id          String      @id @default(uuid())
+  title       String
+  department  String
+  description String
+  created_by  String
+
+  user        User        @relation(fields: [created_by], references: [id])
+  campaigns   Campaign[]
+  
+  @@map("job_roles")
+}
+
+model Campaign {
+  id                String          @id @default(uuid())
+  name              String
+  location          String
+  job_role_id       String
+  created_by_hr_id  String
+  status            CampaignStatus  @default(DRAFT)
+  created_at        DateTime        @default(now())
+
+  jobRole           JobRole         @relation(fields: [job_role_id], references: [id])
+  hr                User            @relation(fields: [created_by_hr_id], references: [id])
+  questions         Question[]
+  candidates        Candidate[]
+  
+  @@map("campaigns")
+}
+
+model Question {
+  id              String        @id @default(uuid())
+  campaign_id     String?
+  text            String
+  type            String
+  level           QuestionLevel
+  key_criteria    String?
+  expected_answer String?
+
+  campaign    Campaign?     @relation(fields: [campaign_id], references: [id])
+  
+  @@map("questions")
+}
+
+model Candidate {
+  id            String          @id @default(uuid())
+  campaign_id   String
+  name          String
+  email         String
+  contact       String
+  emp_details   String
+  status        CandidateStatus @default(PENDING)
+  ai_score      Int?
+  dossier_json  String?
+
+  campaign      Campaign        @relation(fields: [campaign_id], references: [id])
+  
+  @@map("candidates")
+}

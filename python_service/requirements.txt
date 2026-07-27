@@ -1,0 +1,11 @@
+fastapi==0.111.0
+uvicorn==0.30.1
+websockets==12.0
+python-dotenv==1.0.1
+requests==2.32.3
+ollama==0.2.1
+pyttsx3
+# Required if USE_MOCK_AGENTS=false
+# faster-whisper==1.0.2
+# soundfile==0.12.1
+# numpy==1.26.4
