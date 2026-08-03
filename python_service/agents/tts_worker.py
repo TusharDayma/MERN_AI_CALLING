@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import pyttsx3
 
 def main():

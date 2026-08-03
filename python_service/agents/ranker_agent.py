@@ -1,4 +1,4 @@
-from config import USE_MOCK_AGENTS, LLM_PROVIDER, GROQ_API_KEY, GROQ_RANKER_MODEL, HF_API_KEY, HF_RANKER_MODEL
+﻿from config import USE_MOCK_AGENTS, LLM_PROVIDER, GROQ_API_KEY, GROQ_RANKER_MODEL, HF_API_KEY, HF_RANKER_MODEL
 import logging
 import json
 
@@ -32,7 +32,7 @@ class RankerAgent:
         C_RED    = "\033[91m"; C_RESET  = "\033[0m"
 
         print(f"\n{C_CYAN}======================================================================{C_RESET}")
-        print(f"{C_CYAN}[📊 ANALYST RANKER AGENT] Initiating post-call evaluation...{C_RESET}")
+        print(f"{C_CYAN}[ANALYST RANKER AGENT] Initiating post-call evaluation...{C_RESET}")
         print(f"  Transcript: {len(conversation_history)} messages")
         print(f"  Fluency scores: {fluency_scores}")
         print(f"  Off-topic flags: {off_topic_flags}")
@@ -56,7 +56,7 @@ class RankerAgent:
                 "status": "INTEREST_DECLINED",
                 "transcript": conversation_history
             }
-            print(f"{C_YELLOW}[📊 ANALYST RANKER AGENT] Candidate declined interview during Intent Check. Score set to 0 (INTEREST_DECLINED).{C_RESET}")
+            print(f"{C_YELLOW}[ANALYST RANKER AGENT] Candidate declined interview during Intent Check. Score set to 0 (INTEREST_DECLINED).{C_RESET}")
             print(f"{C_CYAN}======================================================================{C_RESET}\n")
             return (0, dossier)
 
@@ -71,7 +71,7 @@ class RankerAgent:
                 "off_topic_flags": off_topic_flags,
                 "transcript": conversation_history
             }
-            print(f"{C_GREEN}[📊 ANALYST RANKER AGENT] Mock scoring complete. Score: 82/100{C_RESET}")
+            print(f"{C_GREEN}[ANALYST RANKER AGENT] Mock scoring complete. Score: 82/100{C_RESET}")
             print(f"  Summary: {dossier['summary']}")
             print(f"{C_CYAN}======================================================================{C_RESET}\n")
             return (82, dossier)
@@ -124,7 +124,7 @@ class RankerAgent:
         try:
             if LLM_PROVIDER == "huggingface":
                 from huggingface_hub import InferenceClient
-                print(f"{C_BLUE}[📊 ANALYST RANKER AGENT] Using HuggingFace API. Model '{HF_RANKER_MODEL}'...{C_RESET}")
+                print(f"{C_BLUE}[ANALYST RANKER AGENT] Using HuggingFace API. Model '{HF_RANKER_MODEL}'...{C_RESET}")
                 client = InferenceClient(api_key=HF_API_KEY)
                 completion = client.chat_completion(
                     model=HF_RANKER_MODEL,
@@ -139,7 +139,7 @@ class RankerAgent:
                 raw_content = completion.choices[0].message.content.strip()
             else:
                 from groq import Groq
-                print(f"{C_BLUE}[📊 ANALYST RANKER AGENT] Using Groq API. Model '{GROQ_RANKER_MODEL}'...{C_RESET}")
+                print(f"{C_BLUE}[ANALYST RANKER AGENT] Using Groq API. Model '{GROQ_RANKER_MODEL}'...{C_RESET}")
                 groq_client = Groq(api_key=GROQ_API_KEY)
                 completion = groq_client.chat.completions.create(
                     model=GROQ_RANKER_MODEL,
@@ -160,7 +160,7 @@ class RankerAgent:
                 if raw_content.endswith("```"):
                     raw_content = raw_content[:-3].strip()
 
-            print(f"{C_GREEN}[📊 ANALYST RANKER AGENT] Raw JSON Response:{C_RESET}\n{raw_content}")
+            print(f"{C_GREEN}[ANALYST RANKER AGENT] Raw JSON Response:{C_RESET}\n{raw_content}")
 
             dossier = json.loads(raw_content)
             dossier["avg_fluency_score"] = avg_fluency
@@ -168,7 +168,7 @@ class RankerAgent:
             dossier["transcript"]        = conversation_history
             score = int(dossier.get("score", 0))
 
-            print(f"{C_GREEN}[📊 ANALYST RANKER AGENT] Evaluation complete. Score: {score}/100{C_RESET}")
+            print(f"{C_GREEN}[ANALYST RANKER AGENT] Evaluation complete. Score: {score}/100{C_RESET}")
             print(f"  Summary: {dossier.get('summary')}")
             print(f"  Strengths: {dossier.get('strengths')}")
             print(f"  Weaknesses: {dossier.get('weaknesses')}")
@@ -177,8 +177,8 @@ class RankerAgent:
 
         except Exception as e:
             logger.error(f"Error in RankerAgent evaluation: {e}", exc_info=True)
-            print(f"{C_RED}[📊 ANALYST RANKER AGENT] API error ({LLM_PROVIDER}): {e}{C_RESET}")
-            print(f"{C_YELLOW}[📊 ANALYST RANKER AGENT] Using keyword + fluency heuristic fallback.{C_RESET}")
+            print(f"{C_RED}[ANALYST RANKER AGENT] API error ({LLM_PROVIDER}): {e}{C_RESET}")
+            print(f"{C_YELLOW}[ANALYST RANKER AGENT] Using keyword + fluency heuristic fallback.{C_RESET}")
 
         # ── Keyword + fluency heuristic fallback ──────────────────────────────
         candidate_text = " ".join(
@@ -227,6 +227,6 @@ class RankerAgent:
             "transcript":        conversation_history
         }
 
-        print(f"{C_YELLOW}[📊 ANALYST RANKER AGENT] Heuristic Fallback Score: {score}/100{C_RESET}")
+        print(f"{C_YELLOW}[ANALYST RANKER AGENT] Heuristic Fallback Score: {score}/100{C_RESET}")
         print(f"{C_CYAN}======================================================================{C_RESET}\n")
         return (score, dossier)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 agents/stt_agent.py
 Speech-to-Text Agent — Groq Whisper API implementation.
 

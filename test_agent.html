@@ -191,27 +191,31 @@ function resample(data, srcRate, dstRate) {
 async function startCall() {
     try {
         startBtn.disabled = true;
+
+        // CREATE CONTEXTS SYNCHRONOUSLY IN CLICK HANDLER (Browser autoplay policy)
+        micCtx = new (window.AudioContext || window.webkitAudioContext)();
+        spkCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (spkCtx.state === 'suspended') spkCtx.resume();
+        if (micCtx.state === 'suspended') micCtx.resume();
+
         badge.className = 'status-badge';
         badge.textContent = '● Requesting microphone…';
         addLog('Requesting microphone access…');
 
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-
-        // Microphone context at native rate — we'll resample to 8kHz manually
-        micCtx = new AudioContext();
         addLog(`Mic AudioContext rate: ${micCtx.sampleRate} Hz`, 'info');
-
-        // Speaker context at native rate
-        spkCtx = new AudioContext();
 
         badge.textContent = '● Connecting…';
         addLog('Connecting to AI engine…');
 
         const questions = JSON.stringify([
             { text: "Tell me about yourself and your work experience." },
-            { text: "What are your salary expectations?" }
+            { text: "Can you describe a challenging problem you faced recently and how you solved it?" },
+            { text: "Why are you interested in this role and our company?" },
+            { text: "What are your salary expectations?" },
+            { text: "Do you have any questions for us?" }
         ]);
-        const wsUrl = `ws://localhost:8000/media-stream?candidateId=BROWSER_TEST&questionsJson=${encodeURIComponent(questions)}`;
+        const wsUrl = `ws://localhost:8000/media-stream?candidateId=BROWSER_TEST&is_scheduled=true&candidateName=Browser%20Tester&questionsJson=${encodeURIComponent(questions)}`;
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
@@ -258,13 +262,21 @@ async function startCall() {
             if (data.event === 'media' && data.media && data.media.payload) {
                 // Resume AudioContext (browser requires user-gesture policy)
                 if (spkCtx.state === 'suspended') {
-                    spkCtx.resume().then(() => addLog('AudioContext resumed.', 'ok'));
+                    addLog('Speaker context is suspended, attempting to resume...', 'info');
+                    spkCtx.resume().then(() => addLog(`AudioContext resumed successfully. State: ${spkCtx.state}`, 'ok'))
+                                   .catch(e => addLog(`Failed to resume AudioContext: ${e}`, 'err'));
                 }
 
                 mediaChunksReceived++;
-                if (mediaChunksReceived === 1) addLog('🔊 Receiving AI audio — you should hear the agent!', 'ok');
+                if (mediaChunksReceived === 1) addLog(`🔊 First audio chunk received! Payload size: ${data.media.payload.length} chars`, 'ok');
+                
                 orb.className = 'orb speaking';
                 const mulaw = fromBase64(data.media.payload);
+                
+                if (mediaChunksReceived % 20 === 0) {
+                    addLog(`Received ${mediaChunksReceived} audio chunks so far...`, 'info');
+                }
+
                 // Decode mu-law → Float32
                 const float32 = new Float32Array(mulaw.length);
                 for (let i = 0; i < mulaw.length; i++) float32[i] = mulawToFloat32(mulaw[i]);
@@ -289,6 +301,8 @@ async function startCall() {
             } else if (data.event === 'clear') {
                 nextPlayTime = 0;
                 orb.className = 'orb listening';
+            } else if (data.event === 'log') {
+                addLog(`[Backend] ${data.message}`, 'info');
             }
         };
 
