@@ -1,12 +1,13 @@
 import requests
 import logging
+import asyncio
 from config import EXPRESS_WEBHOOK_URL
 
 logger = logging.getLogger(__name__)
 
-def post_call_results(candidate_id: str, ai_score: int, dossier_json: dict):
+async def post_call_results(candidate_id: str, ai_score: int, dossier_json: dict, status: str = "COMPLETED"):
     """
-    Sends the generated AI score and dossier back to the Express backend.
+    Sends the generated AI score, dossier, and status back to the Express backend.
     """
     if not candidate_id:
         logger.error("No candidate_id provided. Cannot post webhook.")
@@ -15,14 +16,19 @@ def post_call_results(candidate_id: str, ai_score: int, dossier_json: dict):
     payload = {
         "candidate_id": candidate_id,
         "ai_score": ai_score,
-        "dossier_json": dossier_json
+        "dossier_json": dossier_json,
+        "status": status
     }
 
     try:
-        response = requests.post(EXPRESS_WEBHOOK_URL, json=payload, timeout=10)
-        response.raise_for_status()
-        logger.info(f"Successfully posted results for candidate {candidate_id}")
+        def _post():
+            response = requests.post(EXPRESS_WEBHOOK_URL, json=payload, timeout=10)
+            response.raise_for_status()
+            return response
+
+        await asyncio.to_thread(_post)
+        logger.info(f"Successfully posted results for candidate {candidate_id} (Status: {status})")
         return True
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         logger.error(f"Failed to post results to webhook: {e}")
         return False

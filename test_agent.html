@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice AI Agent Tester</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f1f5f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(16px);
+            padding: 2.5rem 2rem;
+            border-radius: 1.25rem;
+            max-width: 460px;
+            width: 95%;
+            text-align: center;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+        }
+        h2 { font-size: 1.6rem; margin-bottom: 0.5rem; }
+        p.sub { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem; line-height: 1.6; }
+        .orb {
+            width: 90px; height: 90px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #3b82f6, #6366f1);
+            margin: 0 auto 1.5rem;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 0 0 0 rgba(99,102,241,0.5);
+            transition: transform 0.3s;
+        }
+        .orb.listening {
+            animation: orbPulse 1.5s infinite;
+        }
+        .orb.speaking {
+            animation: orbBounce 0.4s infinite alternate;
+            box-shadow: 0 0 30px rgba(99,102,241,0.8);
+        }
+        @keyframes orbPulse {
+            0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
+            70% { box-shadow: 0 0 0 20px rgba(99,102,241,0); }
+            100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+        }
+        @keyframes orbBounce {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+        .btn {
+            width: 100%; padding: 0.85rem 1.5rem;
+            border: none; border-radius: 0.65rem;
+            font-weight: 600; font-size: 1rem;
+            cursor: pointer; margin-top: 0.75rem;
+            transition: all 0.2s; letter-spacing: 0.01em;
+        }
+        .btn-primary { background: #4f46e5; color: white; }
+        .btn-primary:hover { background: #4338ca; transform: translateY(-1px); }
+        .btn-danger { background: #dc2626; color: white; }
+        .btn-danger:hover { background: #b91c1c; }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+        .status-badge {
+            display: inline-block;
+            padding: 0.35rem 0.85rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #94a3b8;
+        }
+        .status-badge.connected { background: rgba(16,185,129,0.15); border-color: #10b981; color: #6ee7b7; }
+        .status-badge.error { background: rgba(239,68,68,0.15); border-color: #ef4444; color: #fca5a5; }
+        #log {
+            margin-top: 1.25rem;
+            background: rgba(0,0,0,0.3);
+            border-radius: 0.65rem;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            max-height: 160px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            line-height: 1.7;
+        }
+        #log .ok { color: #6ee7b7; }
+        #log .err { color: #fca5a5; }
+        #log .info { color: #93c5fd; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div id="orb" class="orb">🤖</div>
+        <h2>Voice AI Tester</h2>
+        <p class="sub">Test your interview AI agent directly in the browser.<br>No Exotel, no KYC needed.</p>
+        <button class="btn btn-primary" id="startBtn">🎤 Connect & Speak</button>
+        <button class="btn btn-danger" id="stopBtn" style="display:none">⛔ Stop</button>
+        <div id="statusBadge" class="status-badge">● Disconnected</div>
+        <div id="log"></div>
+    </div>
+
+<script>
+const startBtn = document.getElementById('startBtn');
+const stopBtn  = document.getElementById('stopBtn');
+const badge    = document.getElementById('statusBadge');
+const orb      = document.getElementById('orb');
+const logEl    = document.getElementById('log');
+
+let ws = null;
+let micCtx = null;   // AudioContext for microphone capture (8000 Hz)
+let spkCtx = null;   // AudioContext for speaker playback (48000 Hz native)
+let mediaStream = null;
+let processor = null;
+let nextPlayTime = 0;
+
+function addLog(msg, type='info') {
+    const d = document.createElement('div');
+    d.className = type;
+    d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    logEl.appendChild(d);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ------ Mu-Law encode (Float32 → mu-law byte) ------
+function float32ToMulaw(sample) {
+    const MAX = 32635;
+    const BIAS = 0x84;
+    let pcm = Math.round(Math.max(-1, Math.min(1, sample)) * 32767);
+    let sign = (pcm < 0) ? 0x80 : 0;
+    if (pcm < 0) pcm = -pcm;
+    if (pcm > MAX) pcm = MAX;
+    pcm += BIAS;
+    let exp = 7;
+    for (let expMask = 0x4000; (pcm & expMask) === 0 && exp > 0; exp--, expMask >>= 1) {}
+    let mantissa = (pcm >> (exp + 3)) & 0x0F;
+    return ~(sign | (exp << 4) | mantissa) & 0xFF;
+}
+
+// ------ Mu-Law decode (mu-law byte → Float32) ------
+function mulawToFloat32(mulaw) {
+    mulaw = ~mulaw & 0xFF;
+    let sign  = mulaw & 0x80;
+    let exp   = (mulaw >> 4) & 0x07;
+    let mant  = mulaw & 0x0F;
+    let sample = ((mant << 3) + 132) << exp;
+    sample -= 132;
+    let pcm = sign ? -sample : sample;
+    return pcm / 32768.0;
+}
+
+function toBase64(uint8) {
+    let binary = '';
+    for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
+    return btoa(binary);
+}
+
+function fromBase64(b64) {
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr;
+}
+
+// ------ Resample Float32 array from srcRate to dstRate ------
+function resample(data, srcRate, dstRate) {
+    if (srcRate === dstRate) return data;
+    const ratio = srcRate / dstRate;
+    const outLen = Math.round(data.length / ratio);
+    const out = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+        const pos = i * ratio;
+        const idx = Math.floor(pos);
+        const frac = pos - idx;
+        const a = data[idx] || 0;
+        const b = data[idx + 1] || 0;
+        out[i] = a + frac * (b - a);
+    }
+    return out;
+}
+
+async function startCall() {
+    try {
+        startBtn.disabled = true;
+        badge.className = 'status-badge';
+        badge.textContent = '● Requesting microphone…';
+        addLog('Requesting microphone access…');
+
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+
+        // Microphone context at native rate — we'll resample to 8kHz manually
+        micCtx = new AudioContext();
+        addLog(`Mic AudioContext rate: ${micCtx.sampleRate} Hz`, 'info');
+
+        // Speaker context at native rate
+        spkCtx = new AudioContext();
+
+        badge.textContent = '● Connecting…';
+        addLog('Connecting to AI engine…');
+
+        const questions = JSON.stringify([
+            { text: "Tell me about yourself and your work experience." },
+            { text: "What are your salary expectations?" }
+        ]);
+        const wsUrl = `ws://localhost:8000/media-stream?candidateId=BROWSER_TEST&questionsJson=${encodeURIComponent(questions)}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            badge.className = 'status-badge connected';
+            badge.textContent = '● Connected — AI is greeting you…';
+            orb.className = 'orb speaking';
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'block';
+            addLog('WebSocket connected!', 'ok');
+
+            // Send the "start" event that the orchestrator expects
+            ws.send(JSON.stringify({
+                event: "start",
+                streamSid: "browser_test_stream_001",
+                start: { customParameters: { candidateId: "BROWSER_TEST" } }
+            }));
+
+            // ---- Mic capture & send to WS ----
+            const source = micCtx.createMediaStreamSource(mediaStream);
+            processor = micCtx.createScriptProcessor(2048, 1, 1);
+            source.connect(processor);
+            processor.connect(micCtx.destination);
+
+            const nativeRate = micCtx.sampleRate;
+
+            processor.onaudioprocess = (e) => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                const nativePCM = e.inputBuffer.getChannelData(0);
+                // Downsample from native rate to 8000 Hz
+                const pcm8k = resample(nativePCM, nativeRate, 8000);
+                // Encode to mu-law
+                const mulaw = new Uint8Array(pcm8k.length);
+                for (let i = 0; i < pcm8k.length; i++) mulaw[i] = float32ToMulaw(pcm8k[i]);
+                ws.send(JSON.stringify({ event: "media", media: { payload: toBase64(mulaw) } }));
+            };
+        };
+
+        // ---- Receive & play audio from AI ----
+        let mediaChunksReceived = 0;
+        ws.onmessage = (evt) => {
+            let data;
+            try { data = JSON.parse(evt.data); } catch { return; }
+
+            if (data.event === 'media' && data.media && data.media.payload) {
+                // Resume AudioContext (browser requires user-gesture policy)
+                if (spkCtx.state === 'suspended') {
+                    spkCtx.resume().then(() => addLog('AudioContext resumed.', 'ok'));
+                }
+
+                mediaChunksReceived++;
+                if (mediaChunksReceived === 1) addLog('🔊 Receiving AI audio — you should hear the agent!', 'ok');
+                orb.className = 'orb speaking';
+                const mulaw = fromBase64(data.media.payload);
+                // Decode mu-law → Float32
+                const float32 = new Float32Array(mulaw.length);
+                for (let i = 0; i < mulaw.length; i++) float32[i] = mulawToFloat32(mulaw[i]);
+
+                // Resample from 8000 Hz to native speaker rate
+                const nativeRate = spkCtx.sampleRate;
+                const resampled = resample(float32, 8000, nativeRate);
+
+                const audioBuffer = spkCtx.createBuffer(1, resampled.length, nativeRate);
+                audioBuffer.getChannelData(0).set(resampled);
+
+                const src = spkCtx.createBufferSource();
+                src.buffer = audioBuffer;
+                src.connect(spkCtx.destination);
+
+                // Seamlessly queue audio
+                if (nextPlayTime < spkCtx.currentTime) {
+                    nextPlayTime = spkCtx.currentTime + 0.05; // 50ms buffer
+                }
+                src.start(nextPlayTime);
+                nextPlayTime += audioBuffer.duration;
+            } else if (data.event === 'clear') {
+                nextPlayTime = 0;
+                orb.className = 'orb listening';
+            }
+        };
+
+        ws.onerror = (e) => {
+            addLog('WebSocket error — is the Python server running on port 8000?', 'err');
+            badge.className = 'status-badge error';
+            badge.textContent = '● Connection Error';
+        };
+
+        ws.onclose = () => {
+            // Guard against double-call
+            if (!ws) return;
+            ws = null;
+            stopCall();
+        };
+
+    } catch (err) {
+        addLog('Error: ' + err.message, 'err');
+        badge.className = 'status-badge error';
+        badge.textContent = '● Error';
+        startBtn.disabled = false;
+    }
+}
+
+function stopCall() {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+    if (processor) { processor.disconnect(); processor = null; }
+    if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+    if (micCtx) { micCtx.close(); micCtx = null; }
+    // Keep spkCtx alive until queued audio finishes, then close
+    setTimeout(() => { if (spkCtx) { spkCtx.close(); spkCtx = null; } }, 3000);
+
+    ws = null;
+    nextPlayTime = 0;
+
+    startBtn.style.display = 'block';
+    startBtn.disabled = false;
+    stopBtn.style.display = 'none';
+    badge.className = 'status-badge';
+    badge.textContent = '● Disconnected';
+    orb.className = 'orb';
+    addLog('Session ended.', 'info');
+}
+
+startBtn.addEventListener('click', startCall);
+stopBtn.addEventListener('click', stopCall);
+</script>
+</body>
+</html>

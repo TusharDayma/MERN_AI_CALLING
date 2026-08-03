@@ -37,8 +37,13 @@ enum QuestionLevel {
 
 enum CandidateStatus {
   PENDING
+  WHATSAPP_SENT
+  WHATSAPP_REPLIED
+  VOICE_FALLBACK_DISPATCHED
+  INTEREST_DECLINED
   SCREENED
   COMPLETED
+  EXPIRED
 }
 
 model User {
@@ -116,17 +121,22 @@ model Question {
 }
 
 model Candidate {
-  id            String          @id @default(uuid())
-  campaign_id   String
-  name          String
-  email         String
-  contact       String
-  emp_details   String
-  status        CandidateStatus @default(PENDING)
-  ai_score      Int?
-  dossier_json  String?
+  id                  String          @id @default(uuid())
+  campaign_id         String
+  name                String
+  email               String
+  contact             String
+  emp_details         String
+  status              CandidateStatus @default(PENDING)
+  ai_score            Int?
+  dossier_json        String?
+  whatsapp_status     String?
+  whatsapp_sent_at   DateTime?
+  whatsapp_replied_at DateTime?
+  consent_status      String?
+  fallback_call_at    DateTime?
 
-  campaign      Campaign        @relation(fields: [campaign_id], references: [id])
+  campaign            Campaign        @relation(fields: [campaign_id], references: [id])
   
   @@map("candidates")
 }

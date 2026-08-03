@@ -4,15 +4,15 @@ import dotenv from 'dotenv';
 import http from 'http';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
-// Load env vars
 dotenv.config();
-import prisma from './config/db.js';
 
-import authRoutes from './routes/authRoutes.js';
-import adminRoutes from './routes/adminRoutes.js';
-import hrRoutes from './routes/hrRoutes.js';
-import twilioRoutes from './routes/twilioRoutes.js';
-
+import authRoutes from './src/modules/auth/auth.route.js';
+import adminRoutes from './src/modules/admin/admin.route.js';
+import campaignRoutes from './src/modules/campaigns/campaign.route.js';
+import candidateRoutes from './src/modules/candidates/candidate.route.js';
+import telephonyRoutes from './src/modules/telephony/telephony.route.js';
+import twilioRoutes from './src/modules/twilio/twilio.route.js';
+import webhookRoutes from './src/modules/webhooks/webhook.route.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -28,44 +28,24 @@ app.use('/media-stream', wsProxy);
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// Domain Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/hr', hrRoutes);
+app.use('/api/hr/campaigns', campaignRoutes);
+app.use('/api/hr/candidates', candidateRoutes);
+app.use('/api/hr', campaignRoutes); // Maintains backwards compatibility for /metrics and /job-roles
+app.use('/api/telephony', telephonyRoutes); // Exotel telephony domain (WhatsApp + Voice)
 app.use('/api/twilio', twilioRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'AntiTalk API is running' });
+  res.status(200).json({ status: 'ok', message: 'AntiTalk Domain-Driven API is running' });
 });
 
 // AI Engine Webhook Endpoint
-app.post('/api/webhooks/call-completed', async (req, res) => {
-  try {
-    const { candidate_id, ai_score, dossier_json } = req.body;
-    
-    if (!candidate_id) {
-      return res.status(400).json({ success: false, error: 'candidate_id is required' });
-    }
-
-    // Save to database
-    await prisma.candidate.update({
-      where: { id: candidate_id },
-      data: {
-        ai_score: ai_score,
-        dossier_json: JSON.stringify(dossier_json),
-        status: 'COMPLETED'
-      }
-    });
-
-    console.log(`[Webhook] Updated candidate ${candidate_id} with score ${ai_score}`);
-    res.status(200).json({ success: true, message: 'Webhook received and candidate updated' });
-  } catch (error) {
-    console.error('Webhook error:', error);
-    res.status(500).json({ success: false, error: 'Failed to update candidate' });
-  }
-});
+app.use('/api/webhooks', webhookRoutes);
 
 // Create HTTP server and bind WebSocket upgrade handler
 const server = http.createServer(app);

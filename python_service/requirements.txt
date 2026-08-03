@@ -1,11 +1,26 @@
+# AntiTalk Python AI Engine — Dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Core API framework
 fastapi==0.111.0
 uvicorn==0.30.1
 websockets==12.0
 python-dotenv==1.0.1
 requests==2.32.3
-ollama==0.2.1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Groq Cloud SDK (replaces ollama + faster-whisper)
+# Provides: STT (whisper-large-v3-turbo) and LLM (llama-3.3-70b-versatile)
+# ─────────────────────────────────────────────────────────────────────────────
+groq>=0.9.0
+
+# TTS — local pyttsx3 (no change; Groq does not offer TTS yet)
 pyttsx3
-# Required if USE_MOCK_AGENTS=false
-# faster-whisper==1.0.2
-# soundfile==0.12.1
-# numpy==1.26.4
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEPRECATED — Local AI (removed)
+# ─────────────────────────────────────────────────────────────────────────────
+# ollama==0.2.1              ← removed; replaced by groq SDK
+# faster-whisper==1.0.2      ← removed; replaced by groq STT API
+# soundfile==0.12.1          ← removed (was required by faster-whisper)
+# numpy==1.26.4              ← removed (was required by faster-whisper)

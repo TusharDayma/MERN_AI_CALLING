@@ -1,0 +1,14 @@
+{
+  "questions": [
+    "Tell me about a challenging backend feature you built using Node.js.",
+    "What are your strategies for managing state in a complex React application?",
+    "What is your current notice period and what is your location preference?",
+    "What is your current CTC and what are your CTC expectations?"
+  ],
+  "key_criteria": [
+    "Must explain technical depth, database choices, or async flow management in Node.js.",
+    "Must discuss React state options such as Context API, Redux, or Zustand.",
+    "Must explicitly specify notice period (e.g. 30 days, 2 months) and whether open to hybrid/remote.",
+    "Must provide numerical CTC expectations (e.g. 18 LPA)."
+  ]
+}

@@ -1,102 +1,231 @@
-# AntiTalk: Comprehensive Project Summary
+# AntiTalk Platform: Comprehensive Architecture & System Documentation
 
-AntiTalk is a cutting-edge B2B SaaS platform engineered to revolutionize the recruitment pipeline. By leveraging real-time, autonomous AI voice agents, AntiTalk automates initial candidate phone screenings, allowing HR departments to scale their hiring efforts exponentially while maintaining a high bar for technical evaluation.
+## Executive Summary & System Purpose
 
----
+**AntiTalk** is an enterprise-grade multi-agent B2B SaaS platform engineered to revolutionize the recruitment pipeline. By leveraging real-time, autonomous AI voice agents over telephony streams, AntiTalk automates initial candidate phone screenings, allowing HR departments to scale their hiring efforts exponentially while maintaining a high bar for technical evaluation.
 
-## 💼 1. The Business Perspective (The "Why")
-
-### The Problem
-In modern enterprise recruitment, HR professionals spend hundreds of hours manually calling candidates for basic preliminary screenings. This process is highly inefficient, prone to unconscious human bias, difficult to scale during hiring surges, and results in delayed feedback for candidates.
-
-### The AntiTalk Solution
-AntiTalk deploys autonomous AI Interviewers that can dial hundreds of candidates simultaneously. The AI asks role-specific technical and behavioral questions, reacts intelligently in real-time, and objectively evaluates the conversation.
-- **Massive Time Savings**: HR can launch a campaign of 500 candidates with a single CSV upload and a click of a button.
-- **Standardized Evaluation**: Every candidate gets asked the same baseline questions in the same professional tone, reducing human bias.
-- **Actionable Insights**: Instantly upon call completion, HR receives a quantified AI Score (0-100) and a parsed "Dossier" containing the candidate's strengths, weaknesses, and a full transcript.
+### Key Business Impact
+- **Massive Scalability**: Recruiter launches campaigns for hundreds of candidates simultaneously with a single CSV upload.
+- **Unbiased & Standardized Screenings**: Candidates receive identical technical evaluations and non-judgmental interactions.
+- **Instant Quantitative & Qualitative Analytics**: HR receives an AI score (0–100), full interview transcripts, and parsed dossiers outlining candidate strengths and weaknesses immediately upon call termination.
 
 ---
 
-## 🛠️ 2. The Technical Architecture (The "How")
+## 🏗️ System Architecture & Tech Stack
 
-AntiTalk is built on a distributed, highly-modular microservice architecture to ensure that the heavy computational load of Machine Learning does not block standard CRUD operations.
+AntiTalk uses a 3-tier microservice architecture separating web management, business logic/telephony orchestration, and computationally heavy Machine Learning voice processing.
 
-### Frontend Application (React)
-- **Tech Stack**: React 18 (Vite), Tailwind CSS, Framer Motion, Lucide Icons.
-- **Role**: Provides a stunning, "Dark Mode" Enterprise UI for two distinct user roles.
-  - **Admin Portal**: For platform superusers to monitor system health, manage HR accounts, and enforce global settings (like concurrent call limits).
-  - **HR Portal**: For recruiters to build campaigns, upload candidate CSVs, and view real-time ranking dashboards.
+```mermaid
+flowchart TB
+    subgraph Frontend["Client Tier (React 18 + Vite)"]
+        UI["Enterprise Dark-Mode Dashboard"]
+        AdminUI["Admin Portal (User Management)"]
+        HRUI["HR Portal (Campaigns & Rankings)"]
+    end
 
-### Core Backend Service (Node.js)
-- **Tech Stack**: Node.js, Express.js, Prisma ORM, SQLite, Twilio Node SDK.
-- **Role**: Acts as the central nervous system. It handles JWT Authentication, Role-Based Access Control (RBAC), database persistence, and triggers outbound API calls to Twilio.
+    subgraph Backend["Core Node.js API Service"]
+        API["Express REST API (Port 5000)"]
+        Prisma["Prisma ORM"]
+        DB[(SQLite Database)]
+        TwilioSDK["Twilio REST SDK"]
+    end
 
-### AntiGravity AI Engine (Python)
-- **Tech Stack**: Python 3, FastAPI, Uvicorn, WebSockets.
-- **Machine Learning / Multi-Agent Pipeline**: 
-  - **Agent 1: TTS (Text-to-Speech)**: `kokoro-onnx` (streams audio segments).
-  - **Agent 2: STT (Speech-to-Text)**: `faster-whisper` (transcribes incoming candidate stream).
-  - **Agent 3: Brain (LLM/Interview Agent)**: `ollama` (Llama 3). Acts as an autonomous technical interviewer. Evaluates candidate answers against the HR campaign's `key_criteria`. Performs stateful tracking of question index and attempts, politely re-asking once if answers are vague/incomplete, and enforces strict voice-only output (no markdown formatting, bold text, lists, or thoughts).
-  - **Agent 4: Analyst (Ranker Agent)**: `ollama` (Llama 3). Performs post-call evaluation on the full transcript, extracting a structured dossier (`score`, `summary`, `strengths`, `weaknesses`) using strict JSON schemas and markdown cleaning.
-- **Role**: A dedicated service that handles the raw, bi-directional 8kHz $\mu$-law audio streams coming from Twilio. It runs the STT $\rightarrow$ LLM $\rightarrow$ TTS loop in real-time, featuring "Barge-In" capabilities (detecting if the candidate interrupts the AI to stop audio playback).
+    subgraph Telephony["Telephony Network"]
+        Twilio["Twilio Voice Gateway"]
+    end
 
----
+    subgraph AIEngine["Python AI Voice Engine"]
+        FastAPI["FastAPI / WebSocket Server (Port 8000)"]
+        STT["Agent 1: STT (faster-whisper)"]
+        LLM["Agent 2: LLM Brain (ollama Llama 3)"]
+        TTS["Agent 3: TTS (kokoro-onnx)"]
+        Ranker["Agent 4: Analyst (ollama Llama 3)"]
+    end
 
-## 🔄 3. The End-to-End Execution Flow (The Journey)
+    HRUI -->|REST API + JWT| API
+    AdminUI -->|REST API + JWT| API
+    API <--> Prisma <--> DB
+    API -->|Outbound Call Trigger| TwilioSDK -->|SIP / Cellular Call| Twilio
+    Twilio <-->|TwiML Handshake| API
+    Twilio <-->|Bi-directional Audio WebSocket /media-stream| FastAPI
+    FastAPI <--> STT
+    FastAPI <--> LLM
+    FastAPI <--> TTS
+    FastAPI --> Ranker
+    Ranker -->|HTTP POST /api/webhooks/call-completed| API
+```
 
-The lifecycle of an AntiTalk AI Screening campaign follows a strictly orchestrated 7-step pipeline:
+### Technology Stack Breakdown
 
-### Step 1: Campaign Creation
-The HR User logs into the React dashboard and uses the Campaign Wizard to define a job role (e.g., "Senior Node.js Developer"). They upload a CSV of candidates, which the frontend parses (`PapaParse`) and sends to the Node.js backend to save in the SQLite database.
-
-### Step 2: Call Dispatch
-The HR User clicks "Launch Campaign". The Node.js server iterates through the pending candidates and uses the Twilio REST API to initiate outbound phone calls (`twilioClient.calls.create`).
-
-### Step 3: TwiML Handshake
-When a candidate answers their phone, Twilio pings the Node.js server asking for instructions (via a Webhook). Node.js returns an XML document (TwiML) instructing Twilio to open a `<Stream>` to the Python FastAPI server, passing along the `candidateId`.
-
-### Step 4: The Real-Time Interview
-Twilio establishes a WebSocket connection with the Python Server (`/media-stream`). 
-1. **Listen**: Twilio streams the candidate's raw audio to Python. The STT Agent (Agent 2) transcribes it.
-2. **Evaluate & Re-ask**: The LLM Agent (Agent 3) parses the response, checks the specific `key_criteria` for the current question, and decides whether to transition to the next question or ask a polite follow-up (capping follow-ups at 1 per question to ensure smooth progression).
-3. **Speak**: The TTS Agent (Agent 1) converts the clean, voice-formatted text back into raw audio and streams it to Twilio, which plays it into the candidate's ear.
-
-### Step 5: Post-Call Analytics
-The candidate hangs up, closing the WebSocket connection. The Python `RankerAgent` (Agent 4) immediately takes the full conversation transcript and prompts the LLM to generate a JSON dossier containing a summary, strengths, weaknesses, and a final score out of 100.
-
-### Step 6: Webhook Synchronization
-The Python service acts as a client, making an HTTP `POST` request to the Node.js server (`/api/webhooks/call-completed`) containing the candidate's ID, Score, and JSON Dossier. Node.js updates the SQLite database and marks the candidate as `COMPLETED`.
-
-### Step 7: HR Review
-The HR User refreshes their "Candidate Rankings" page in React. They instantly see the candidate's score on a progress bar. Clicking "View Dossier" opens a frosted-glass modal displaying the AI's technical summary and the raw interview transcript, allowing HR to make an immediate hiring decision.
-
----
-
-## 🛠️ 4. Verification & Testing
-
-To test and verify the multi-agent pipeline without spinning up Twilio or running external WebSockets, a CLI-based tester is provided:
-*   **CLI Agent Tester (`test_agents.py`)**: Directly runs `LLMAgent` and `RankerAgent` in the terminal. Simulates TTS via console printing and STT via user input (`input()`). Offers both **Mock Mode** (deterministic state progression) and **Real Ollama Mode** (live model integration). Prints the fully compiled evaluation dossier upon completion.
+| Layer | Stack / Technologies | Key Responsibilities |
+| :--- | :--- | :--- |
+| **Frontend Application** | React 18, Vite, Tailwind CSS, Lucide Icons, Framer Motion | Provides dark-mode management UI for Admin & HR portals, candidate CSV uploading, live rankings, and interactive dossier popups |
+| **Core API Backend** | Node.js, Express.js, Prisma ORM, SQLite | Handles JWT authentication, Role-Based Access Control (RBAC), database persistence, Twilio REST API call triggers, and webhook endpoints |
+| **AI Engine Server** | Python 3.10+, FastAPI, Uvicorn, WebSockets | Streams bi-directional 8kHz $\mu$-law audio over WebSockets with Voice Activity Detection (VAD) and barge-in capability |
+| **Speech-to-Text (STT)** | `faster-whisper` | Real-time transcription of incoming candidate voice audio |
+| **LLM Brain & Analyst** | `ollama` (Llama 3 model) | Conversational interview state machine (evaluating criteria, handling re-asks) & post-call dossier analyst |
+| **Text-to-Speech (TTS)** | `kokoro-onnx` | Low-latency synthesis of AI response text back into telephony-compatible audio streams |
+| **Telephony Gateway** | Twilio Voice API & TwiML | Connects cellular/landline phone networks with server WebSockets via TwiML `<Stream>` directives |
 
 ---
 
-## 🚀 5. How to Run the Full Pipeline
+## 📊 Data Models & Schema Architecture
 
-For full integration (web interface, backend, voice AI service, and Twilio calls), the project relies on the following runtime steps:
+All application persistence is handled via Prisma ORM in `server/prisma/schema.prisma` backed by an SQLite database.
 
-1. **Database Initialization**: Setup SQLite using Prisma:
+```mermaid
+erDiagram
+    User ||--o{ PasswordReset : requests
+    User ||--o{ JobRole : creates
+    User ||--o{ Campaign : manages
+    JobRole ||--o{ Campaign : defines
+    Campaign ||--o{ Question : contains
+    Campaign ||--o{ Candidate : screens
+
+    User {
+        String id PK
+        String name
+        String username UK
+        String email UK
+        String password_hash
+        Role role "ADMIN | HR"
+        UserStatus status "ACTIVE | DEACTIVATED"
+        Boolean is_deleted
+        DateTime created_at
+        DateTime updated_at
+    }
+
+    PasswordReset {
+        String id PK
+        String user_id FK
+        ResetStatus status "PENDING | RESOLVED"
+        DateTime created_at
+    }
+
+    JobRole {
+        String id PK
+        String title
+        String department
+        String description
+        String created_by FK
+    }
+
+    Campaign {
+        String id PK
+        String name
+        String location
+        String job_role_id FK
+        String created_by_hr_id FK
+        CampaignStatus status "DRAFT | ACTIVE | PAUSED | COMPLETED"
+        DateTime created_at
+    }
+
+    Question {
+        String id PK
+        String campaign_id FK
+        String text
+        String type
+        QuestionLevel level "EASY | MEDIUM | HARD"
+        String key_criteria
+        String expected_answer
+    }
+
+    Candidate {
+        String id PK
+        String campaign_id FK
+        String name
+        String email
+        String contact
+        String emp_details
+        CandidateStatus status "PENDING | SCREENED | COMPLETED"
+        Int ai_score
+        String dossier_json
+    }
+```
+
+---
+
+## 🤖 Multi-Agent AI Engine Architecture
+
+Located in `python_service/agents`, four specialized AI agents collaborate during and after the interview:
+
+```
+python_service/agents/
+├── stt_agent.py              # Agent 1: Speech-to-Text (faster-whisper)
+├── llm_agent.py              # Agent 2: Conversation Manager & Brain (Ollama Llama 3)
+├── tts_agent.py              # Agent 3: Text-to-Speech (kokoro-onnx)
+└── ranker_agent.py           # Agent 4: Analyst & Dossier Generator (Ollama Llama 3)
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Candidate (Phone)
+    participant T as Twilio Gateway
+    participant WS as FastAPI WebSocket (/media-stream)
+    participant STT as Agent 1: STT
+    participant LLM as Agent 2: LLM Brain
+    participant TTS as Agent 3: TTS
+    participant Ranker as Agent 4: Analyst
+    participant Node as Node.js Server
+
+    C->>T: Speaks into phone
+    T->>WS: Streams 8kHz mulaw audio chunks (every 20ms)
+    WS->>STT: Accumulates audio until silence detected (VAD)
+    STT-->>WS: Returns transcript ("I have 4 years of React experience")
+    WS->>LLM: Pass candidate answer + question criteria
+    LLM-->>WS: Returns clean speech text ("That's great. What is the Virtual DOM?")
+    WS->>TTS: Synthesize AI text
+    TTS-->>WS: Audio chunks (8kHz mulaw)
+    WS->>T: Stream media payload
+    T->>C: Plays AI audio to candidate
+
+    Note over C,WS: Loop repeats until all campaign questions complete
+
+    WS->>Ranker: Call disconnect -> Pass full transcript + job criteria
+    Ranker-->>WS: Structured JSON Dossier (Score: 85, Strengths, Weaknesses)
+    WS->>Node: POST /api/webhooks/call-completed (Candidate ID + Dossier)
+```
+
+---
+
+## 🔄 End-to-End Execution Flow
+
+```mermaid
+flowchart LR
+    Step1["1. Campaign Creation\n(HR uploads CSV)"] --> Step2["2. Call Dispatch\n(Node triggers Twilio REST)"]
+    Step2 --> Step3["3. TwiML Handshake\n(Twilio receives WebSocket XML)"]
+    Step3 --> Step4["4. Interactive Interview\n(Bi-directional Voice Loop)"]
+    Step4 --> Step5["5. Post-Call Analysis\n(Ranker Agent generates Dossier)"]
+    Step5 --> Step6["6. Webhook Sync\n(Result posted to Node.js)"]
+    Step6 --> Step7["7. HR Dashboard Review\n(Real-time scores & Dossiers)"]
+```
+
+---
+
+## 📁 Core Directory & File Index
+
+- **Database & Backend API**: `server/server.js`, `server/prisma/schema.prisma`, `server/controllers/` (`hrController.js`, `twilioController.js`, `adminController.js`, `authController.js`)
+- **Python AI Engine**: `python_service/main.py`, `python_service/agents/` (`stt_agent.py`, `llm_agent.py`, `tts_agent.py`, `ranker_agent.py`), `python_service/test_agents.py`
+- **React Frontend**: `client/src/App.jsx`, `client/src/services/api.js`, `client/src/components/hr/HrDashboard.jsx`
+
+---
+
+## 🛠️ Setup & Execution Commands
+
+1. **Database Setup**:
    ```bash
    cd server && npx prisma db push && node seed.js
    ```
-2. **Start Services**:
-   - Run `npm run dev` in the root folder to start the React frontend and Node.js proxy server.
-   - Run the Python server on port 8000:
-     ```bash
-     cd python_service && .\venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-     ```
-3. **Establish Ngrok Tunnel**: Route public Twilio requests and WebSocket stream connections to the backend server:
+2. **Start Dev Servers (Frontend + Node API)**:
    ```bash
-   ngrok http --url=stonable-remiform-augustina.ngrok-free.dev 5000
+   npm run dev
    ```
-   *(Since Node.js proxies all `/media-stream` traffic on Port 5000 to Port 8000, only a single ngrok tunnel is needed!)*
-4. **Log In and Test**: Open the web application, log in with `hr@antitalk.com` / `password123`, create a campaign, and add candidates to receive live automated voice interviews.
-
+3. **Start Python AI Voice Engine**:
+   ```bash
+   cd python_service && .\venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+4. **Standalone CLI AI Agent Test**:
+   ```bash
+   cd python_service && .\venv\Scripts\python.exe test_agents.py
+   ```

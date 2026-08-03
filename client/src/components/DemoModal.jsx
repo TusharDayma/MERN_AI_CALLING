@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle2 } from 'lucide-react';
 
 export default function DemoModal({ isOpen, onClose }) {
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = React.useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -18,72 +18,79 @@ export default function DemoModal({ isOpen, onClose }) {
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <motion.div 
+          {/* Backdrop */}
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-text-primary/40 backdrop-blur-sm"
           />
-          
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative w-full max-w-lg bg-surface rounded-2xl border border-white/10 shadow-2xl overflow-hidden p-8"
-          >
-            <button 
-              onClick={onClose}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
 
-            {submitted ? (
-              <motion.div 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
-                className="flex flex-col items-center justify-center py-12 text-center"
+          {/* Panel */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: 16 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="relative w-full max-w-md bg-surface rounded-2xl border border-border shadow-2xl overflow-hidden"
+          >
+            {/* Top accent */}
+            <div className="h-1 w-full bg-primary" />
+
+            <div className="p-8">
+              <button
+                onClick={onClose}
+                className="absolute top-6 right-6 p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-raised rounded-lg transition-colors"
               >
-                <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-6">
-                  <CheckCircle2 className="w-8 h-8 text-primary" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-2">Request Received</h3>
-                <p className="text-slate-400">Our team will be in touch shortly to schedule your demo.</p>
-              </motion.div>
-            ) : (
-              <>
-                <h2 className="text-2xl font-bold text-white mb-2">Book a Live Demo</h2>
-                <p className="text-slate-400 mb-6">See how AntiTalk can accelerate your engineering hiring.</p>
-                
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">Work Email</label>
-                    <input 
-                      type="email" 
-                      required
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                      placeholder="name@company.com"
-                    />
+                <X className="w-5 h-5" />
+              </button>
+
+              {submitted ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex flex-col items-center justify-center py-10 text-center"
+                >
+                  <div className="w-16 h-16 bg-success-bg border border-success/20 rounded-full flex items-center justify-center mb-6">
+                    <CheckCircle2 className="w-8 h-8 text-success" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">Company Name</label>
-                    <input 
-                      type="text" 
-                      required
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                      placeholder="Acme Corp"
-                    />
+                  <h3 className="text-2xl font-bold text-text-primary mb-2">Request Received!</h3>
+                  <p className="text-text-secondary">Our team will be in touch shortly to schedule your demo.</p>
+                </motion.div>
+              ) : (
+                <>
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-text-primary mb-1">Book a Live Demo</h2>
+                    <p className="text-text-secondary">See how AntiTalk can accelerate your engineering hiring.</p>
                   </div>
-                  <button 
-                    type="submit"
-                    className="w-full mt-6 py-3 px-4 bg-gradient-to-r from-primary to-accent hover:from-primary-glow hover:to-accent text-white font-medium rounded-lg shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] transition-all"
-                  >
-                    Request Access
-                  </button>
-                </form>
-              </>
-            )}
+
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-text-primary mb-1.5">Work Email</label>
+                      <input
+                        type="email"
+                        required
+                        className="w-full"
+                        placeholder="name@company.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-text-primary mb-1.5">Company Name</label>
+                      <input
+                        type="text"
+                        required
+                        className="w-full"
+                        placeholder="Acme Corp"
+                      />
+                    </div>
+                    <button type="submit" className="btn-primary w-full mt-2">
+                      Request Access
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
           </motion.div>
         </div>
       )}

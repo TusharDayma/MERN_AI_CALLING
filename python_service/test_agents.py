@@ -6,22 +6,23 @@ import json
 # Ensure we can import from the agents folder
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from agents.llm_agent import LLMAgent
+from agents.recruitment_assistant import RecruitmentAssistant
 from agents.ranker_agent import RankerAgent
 from config import BRAIN_MODEL, RANKER_MODEL
 
-# 1. Define the default HR Campaign data
 MOCK_CAMPAIGN = {
-    "role": "Senior React Developer",
+    "candidate_name": "Alex Johnson",
+    "role": "Senior Full-Stack Developer",
+    "campaign_brief": "Senior Full-Stack Developer at TechCorp. Building scalable Node.js microservices and React dashboards (Remote).",
+    "scheduling_link": "https://calendly.com/techcorp-hr/screening",
+    "hr_deadline_days": 3,
     "questions": [
-        "Explain the virtual DOM and how React uses reconciliation.",
-        "When would you use useMemo versus useCallback in React?",
-        "How do you handle state management across a complex React application?"
+        "Could you briefly describe your experience with Node.js microservices?",
+        "What is your current notice period and location preference?"
     ],
     "key_criteria": [
-        "Must explain the virtual DOM concept, diffing algorithm, and updating the real DOM.",
-        "Must state that useMemo is for memoizing values, and useCallback is for memoizing callback functions to prevent unnecessary child re-renders.",
-        "Must discuss Context API, Redux/Zustand, component state, and when to use local vs global state."
+        "Must mention architecture experience with Node.js.",
+        "Must specify notice period in days/months."
     ]
 }
 
@@ -31,81 +32,81 @@ def print_header(title):
     print("=" * 60)
 
 async def main():
-    print_header("AntiTalk AI Multi-Agent Pipeline Local Tester")
-    
-    # 2. Setup run mode (Mock vs Real Ollama)
+    print_header("AntiTalk AI Recruitment Assistant Tester")
     print(f"Current Models - Brain: '{BRAIN_MODEL}', Ranker: '{RANKER_MODEL}'")
-    mode = input("Run tests with [R]eal Ollama or [M]ock Agents? (R/M): ").strip().upper()
     
-    is_mock = True
-    if mode == 'R':
-        # Verify if ollama is installed and running
+    mode = input("Run tests with [R]eal Ollama or [M]ock Agents? (R/M): ").strip().upper()
+    is_mock = (mode != 'R')
+
+    if not is_mock:
         try:
             import ollama
-            print("Checking Ollama status...")
             ollama.list()
-            is_mock = False
-            print("Ollama connection successful. Real agents will be used.")
-        except ImportError:
-            print("WARNING: 'ollama' package is not installed. Run 'pip install ollama' first.")
-            print("Defaulting to Mock Agents.")
+            print("Ollama connection successful. Real agents active.")
         except Exception as e:
-            print(f"WARNING: Could not connect to local Ollama daemon: {e}")
-            print("Ensure Ollama is running (`ollama run llama3`).")
-            print("Defaulting to Mock Agents.")
-    else:
-        print("Using Mock Agents.")
+            print(f"WARNING: Could not connect to Ollama ({e}). Defaulting to Mock Agents.")
+            is_mock = True
 
-    # 3. Initialize Agent 3 (LLM) and Agent 4 (Ranker)
-    llm = LLMAgent(
-        role=MOCK_CAMPAIGN["role"],
+    print("\nSelect Interaction Rule to test:")
+    print("1. Rule 1 & 2: WhatsApp Outreach & Scheduling")
+    print("2. Rule 3: Scheduled Voice Call")
+    print("3. Rule 4: Fallback Voice Call (Unsolicited)")
+    choice = input("Enter choice (1/2/3) [Default 2]: ").strip() or "2"
+
+    if choice == "1":
+        channel = "WhatsApp"
+        is_scheduled = False
+    elif choice == "3":
+        channel = "Voice"
+        is_scheduled = False
+    else:
+        channel = "Voice"
+        is_scheduled = True
+
+    assistant = RecruitmentAssistant(
+        candidate_name=MOCK_CAMPAIGN["candidate_name"],
+        campaign_brief=MOCK_CAMPAIGN["campaign_brief"],
+        scheduling_link=MOCK_CAMPAIGN["scheduling_link"],
+        hr_deadline_days=MOCK_CAMPAIGN["hr_deadline_days"],
+        current_channel=channel,
+        is_scheduled=is_scheduled,
         questions=MOCK_CAMPAIGN["questions"],
         key_criteria=MOCK_CAMPAIGN["key_criteria"]
     )
-    llm.is_mock = is_mock
-    
+    assistant.agent.is_mock = is_mock
+
     ranker = RankerAgent()
     ranker.is_mock = is_mock
 
-    print_header("Interview Started")
-    print(f"Role: {MOCK_CAMPAIGN['role']}")
-    print(f"Total Questions: {len(MOCK_CAMPAIGN['questions'])}")
+    print_header("Conversation Started")
+    print(f"Channel: {channel} | Scheduled: {is_scheduled}")
+    print(f"Candidate: {MOCK_CAMPAIGN['candidate_name']}")
     print("-" * 60)
-    
-    # Simulate Agent 1 (TTS) playing the initial greeting
-    greeting = "Hello, this is the AntiTalk AI. Thank you for joining this interview. How are you doing today?"
-    print(f"\n[Agent 1 (TTS) Output]:\n>>> \"{greeting}\"\n")
 
-    # Start the interview loop
-    while llm.current_question_idx < len(llm.questions):
-        # Simulate Agent 2 (STT) via user input
+    # Initial outreach / greeting
+    greeting = assistant.start_conversation()
+    print(f"\n[AI Assistant Output]:\n>>> \"{greeting}\"\n")
+
+    # Conversation Loop
+    while not assistant.agent.is_completed:
         print("-" * 60)
-        user_input = input("[Agent 2 (STT) Input - Candidate Response]:\n<<< ")
+        user_input = input(f"[{channel} Candidate Response]:\n<<< ")
         if user_input.strip().lower() in ['exit', 'quit', 'hangup']:
-            print("\nCall hung up by candidate.")
+            print("\nConversation ended by candidate.")
             break
-            
-        print("\n[Thinking...] calling Agent 3 (Live Brain / LLM)...")
-        # Run the LLM Agent to get the response
-        response = await llm.generate_response(user_input)
-        
-        # Simulate Agent 1 (TTS) playing the generated response
-        print(f"\n[Agent 1 (TTS) Output]:\n>>> \"{response}\"\n")
-        
-        # Print status of internal loop
-        print(f"--- Internals: Question Index: {llm.current_question_idx}/{len(llm.questions)} | Attempt: {llm.attempts} ---")
 
-    print_header("Call Completed - Launching Post-Call Analysis")
-    print("Calling Agent 4 (Analyst / Ranker)...")
-    
-    # Run Agent 4 (Ranker) on the transcript
-    score, dossier = ranker.evaluate_interview(llm.conversation_history)
-    
-    print_header("Agent 4 (Analyst) Evaluation Results")
-    print(f"Candidate Score: {score}/100")
-    print("\nFormatted Dossier JSON:")
-    print(json.dumps(dossier, indent=2))
-    print("=" * 60)
+        response = await assistant.agent.generate_response(user_input)
+        print(f"\n[AI Assistant Output]:\n>>> \"{response}\"\n")
+        print(f"--- Internals: Status='{assistant.agent.candidate_status}', Question Index={assistant.agent.current_question_idx}/{len(assistant.agent.questions)} ---")
+
+    if channel == "Voice" and assistant.agent.candidate_status in ["COMPLETED", "INTERESTED", "SCHEDULED"]:
+        print_header("Call Completed - Launching Post-Call Analysis")
+        score, dossier = ranker.evaluate_interview(assistant.agent.conversation_history)
+        print_header("Evaluation Results")
+        print(f"Candidate AI Score: {score}/100")
+        print("\nFormatted Dossier:")
+        print(json.dumps(dossier, indent=2))
+        print("=" * 60)
 
 if __name__ == "__main__":
     try:

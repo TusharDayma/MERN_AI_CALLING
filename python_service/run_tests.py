@@ -122,7 +122,7 @@ async def test_llm_agent():
         "State is internal/mutable; props are external/immutable.",
         "Must mention JWT, HTTPS, and input validation."
     ]
-    llm = LLMAgent(role="Senior Engineer", questions=questions, key_criteria=criteria)
+    llm = LLMAgent(role="Senior Engineer", questions=questions, key_criteria=criteria, is_scheduled=True)
 
     # T2.1 – Initialisation
     test("LLM Agent initializes without error",         llm is not None)
@@ -231,7 +231,7 @@ async def test_full_pipeline():
     from agents.ranker_agent import RankerAgent
 
     stt    = STTAgent()
-    llm    = LLMAgent()
+    llm    = LLMAgent(is_scheduled=True)
     ranker = RankerAgent()
 
     dummy_audio = b"\x00" * 100
@@ -283,8 +283,11 @@ async def test_webhook_client():
         "transcript": []
     }
     try:
-        post_call_results("test-candidate-id", 85, dummy_dossier)
-        test("Webhook call to localhost:5000 succeeded (Express is running)", True)
+        success = await post_call_results("test-candidate-id", 85, dummy_dossier)
+        if success:
+            test("Webhook call to localhost:5000 succeeded (Express is running)", True)
+        else:
+            test("Webhook call handled gracefully even if Express is offline", True, "Returned False")
     except Exception as e:
         # Expected if Express isn't running – should not crash the test
         test("Webhook call handled gracefully even if Express is offline",

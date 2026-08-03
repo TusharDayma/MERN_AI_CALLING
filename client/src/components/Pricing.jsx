@@ -1,104 +1,140 @@
 import React, { useState } from 'react';
 import { Check } from 'lucide-react';
 
+const PLANS = [
+  {
+    name: 'Starter / Pay-Per-Use',
+    tagline: 'Ideal for boutique agencies.',
+    price: { monthly: '$0', annual: '$0' },
+    suffix: '/mo base',
+    features: ['$2 per completed interview call', 'Standard voice models', 'Email support'],
+    cta: 'Get Started',
+    featured: false,
+  },
+  {
+    name: 'Pro Team',
+    tagline: 'For growing engineering teams.',
+    price: { monthly: '$299', annual: '$239' },
+    suffix: '/mo',
+    features: ['200 interview credits included', 'Custom ATS export', 'Advanced rubric builder', 'Priority support'],
+    cta: 'Start Free Trial',
+    featured: true,
+  },
+  {
+    name: 'Enterprise Custom',
+    tagline: 'For massive scale and compliance.',
+    price: { monthly: 'Custom', annual: 'Custom' },
+    suffix: '',
+    features: ['Dedicated local model deployment', 'Custom voice cloning', 'SLA guarantees', 'Unlimited seats'],
+    cta: 'Contact Sales',
+    featured: false,
+    isEnterprise: true,
+  },
+];
+
 export default function Pricing({ onBookDemo }) {
   const [isAnnual, setIsAnnual] = useState(true);
 
   return (
-    <section id="pricing" className="py-24 bg-surface-lighter">
+    <section id="pricing" className="py-24 bg-background">
       <div className="max-w-7xl mx-auto px-6">
+        {/* Header */}
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+          <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Pricing</p>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-text-primary mb-5 tracking-tight">
             Transparent Enterprise Pricing
           </h2>
-          <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-8">
+          <p className="text-lg text-text-secondary max-w-xl mx-auto mb-8">
             Scale your engineering hiring without hidden costs.
           </p>
-          
-          <div className="flex items-center justify-center gap-4">
-            <span className={`text-sm ${!isAnnual ? 'text-white' : 'text-slate-400'}`}>Monthly</span>
-            <button 
-              onClick={() => setIsAnnual(!isAnnual)}
-              className="relative w-14 h-7 bg-white/10 rounded-full transition-colors hover:bg-white/20"
+
+          {/* Toggle */}
+          <div className="inline-flex items-center gap-4 p-1.5 bg-surface border border-border rounded-xl shadow-sm">
+            <button
+              onClick={() => setIsAnnual(false)}
+              className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-150 ${
+                !isAnnual
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
             >
-              <div 
-                className={`absolute top-1 left-1 w-5 h-5 bg-primary rounded-full transition-transform ${isAnnual ? 'translate-x-7' : 'translate-x-0'}`}
-              />
+              Monthly
             </button>
-            <span className={`text-sm flex items-center gap-2 ${isAnnual ? 'text-white' : 'text-slate-400'}`}>
+            <button
+              onClick={() => setIsAnnual(true)}
+              className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 ${
+                isAnnual
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
               Annual
-              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-xs font-medium rounded-full">Save 20%</span>
-            </span>
+              <span className="badge-success text-[11px] px-2 py-0.5">Save 20%</span>
+            </button>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          {/* Starter */}
-          <div className="bg-surface border border-white/5 rounded-3xl p-8">
-            <h3 className="text-xl font-semibold text-white mb-2">Starter / Pay-Per-Use</h3>
-            <p className="text-slate-400 text-sm mb-6">Ideal for boutique agencies.</p>
-            <div className="mb-8">
-              <span className="text-4xl font-bold text-white">$0</span>
-              <span className="text-slate-400">/mo base</span>
-            </div>
-            <ul className="space-y-4 mb-8">
-              {['$2 per completed interview call', 'Standard voice models', 'Email support'].map((feature, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
-                  <Check className="w-4 h-4 text-primary shrink-0" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <button className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 text-white font-medium rounded-lg transition-colors border border-white/10">
-              Get Started
-            </button>
-          </div>
+        {/* Cards */}
+        <div className="grid lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          {PLANS.map((plan) => (
+            <div
+              key={plan.name}
+              className={`relative rounded-2xl p-8 flex flex-col transition-all duration-200 ${
+                plan.featured
+                  ? 'bg-primary text-white shadow-2xl scale-[1.02]'
+                  : 'card-hover'
+              }`}
+            >
+              {plan.featured && (
+                <div className="absolute -top-3.5 inset-x-0 flex justify-center">
+                  <span className="bg-warning text-white text-[11px] font-bold uppercase tracking-wider px-4 py-1 rounded-full shadow-sm">
+                    Most Popular
+                  </span>
+                </div>
+              )}
 
-          {/* Pro */}
-          <div className="bg-surface border border-primary/50 rounded-3xl p-8 relative scale-105 shadow-2xl">
-            <div className="absolute -top-4 inset-x-0 flex justify-center">
-              <div className="px-4 py-1 bg-gradient-to-r from-primary to-accent text-white text-xs font-bold uppercase tracking-wider rounded-full">
-                Most Popular
+              <div className="mb-8">
+                <h3 className={`text-lg font-bold mb-1 ${plan.featured ? 'text-white' : 'text-text-primary'}`}>
+                  {plan.name}
+                </h3>
+                <p className={`text-sm mb-6 ${plan.featured ? 'text-blue-100' : 'text-text-secondary'}`}>
+                  {plan.tagline}
+                </p>
+                <div className="flex items-baseline gap-1">
+                  <span className={`text-4xl font-extrabold ${plan.featured ? 'text-white' : 'text-text-primary'}`}>
+                    {isAnnual ? plan.price.annual : plan.price.monthly}
+                  </span>
+                  {plan.suffix && (
+                    <span className={`text-sm ${plan.featured ? 'text-blue-200' : 'text-text-muted'}`}>
+                      {plan.suffix}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Pro Team</h3>
-            <p className="text-slate-400 text-sm mb-6">For growing engineering teams.</p>
-            <div className="mb-8">
-              <span className="text-4xl font-bold text-white">${isAnnual ? '239' : '299'}</span>
-              <span className="text-slate-400">/mo</span>
-            </div>
-            <ul className="space-y-4 mb-8">
-              {['200 interview credits included', 'Custom ATS export', 'Advanced rubric builder', 'Priority support'].map((feature, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
-                  <Check className="w-4 h-4 text-primary shrink-0" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <button className="w-full py-3 px-4 bg-primary hover:bg-primary-glow text-white font-medium rounded-lg transition-colors shadow-[0_0_15px_rgba(99,102,241,0.3)]">
-              Start Free Trial
-            </button>
-          </div>
 
-          {/* Enterprise */}
-          <div className="bg-surface border border-white/5 rounded-3xl p-8">
-            <h3 className="text-xl font-semibold text-white mb-2">Enterprise Custom</h3>
-            <p className="text-slate-400 text-sm mb-6">For massive scale and compliance.</p>
-            <div className="mb-8">
-              <span className="text-4xl font-bold text-white">Custom</span>
+              <ul className="space-y-3.5 mb-8 flex-1">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm">
+                    <Check
+                      className={`w-4 h-4 shrink-0 mt-0.5 ${plan.featured ? 'text-blue-200' : 'text-success'}`}
+                    />
+                    <span className={plan.featured ? 'text-blue-50' : 'text-text-secondary'}>{f}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                onClick={plan.isEnterprise ? onBookDemo : undefined}
+                className={`w-full py-3 text-sm font-semibold rounded-xl transition-all duration-150 ${
+                  plan.featured
+                    ? 'bg-white text-primary hover:bg-blue-50 shadow-sm'
+                    : 'btn-primary'
+                }`}
+              >
+                {plan.cta}
+              </button>
             </div>
-            <ul className="space-y-4 mb-8">
-              {['Dedicated local model deployment', 'Custom voice cloning', 'SLA guarantees', 'Unlimited seats'].map((feature, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
-                  <Check className="w-4 h-4 text-primary shrink-0" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <button onClick={onBookDemo} className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 text-white font-medium rounded-lg transition-colors border border-white/10">
-              Contact Sales
-            </button>
-          </div>
+          ))}
         </div>
       </div>
     </section>

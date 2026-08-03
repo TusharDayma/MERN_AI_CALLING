@@ -1,4 +1,4 @@
-from config import USE_MOCK_AGENTS, RANKER_MODEL
+from config import USE_MOCK_AGENTS, LLM_PROVIDER, GROQ_API_KEY, GROQ_RANKER_MODEL, HF_API_KEY, HF_RANKER_MODEL
 import logging
 import json
 
@@ -39,6 +39,27 @@ class RankerAgent:
 
         avg_fluency = round(sum(fluency_scores) / len(fluency_scores), 2) if fluency_scores else None
 
+        # ── Early Exit / Candidate Decline Detection ───────────────────────────
+        full_user_text = " ".join([m["content"].lower() for m in conversation_history if m.get("role") == "user"])
+        is_declined = any(phrase in full_user_text for phrase in [
+            "not interested", "no thank", "nope", "don't want", "pass", "busy", "cannot talk", "opt out"
+        ]) and len(conversation_history) <= 6
+
+        if is_declined:
+            dossier = {
+                "score": 0,
+                "summary": "Candidate explicitly declined or opted out of the screening interview during the initial intent check.",
+                "strengths": [],
+                "weaknesses": ["Opted out of preliminary AI screening process"],
+                "avg_fluency_score": avg_fluency or 0.0,
+                "off_topic_flags": off_topic_flags,
+                "status": "INTEREST_DECLINED",
+                "transcript": conversation_history
+            }
+            print(f"{C_YELLOW}[📊 ANALYST RANKER AGENT] Candidate declined interview during Intent Check. Score set to 0 (INTEREST_DECLINED).{C_RESET}")
+            print(f"{C_CYAN}======================================================================{C_RESET}\n")
+            return (0, dossier)
+
         # ── Mock path ─────────────────────────────────────────────────────────
         if self.is_mock:
             dossier = {
@@ -55,12 +76,13 @@ class RankerAgent:
             print(f"{C_CYAN}======================================================================{C_RESET}\n")
             return (82, dossier)
 
-        # ── Real path: Ollama ─────────────────────────────────────────────────
-        import ollama
+        # ── Real path: Groq Chat Completions ──────────────────────────────────
+        from groq import Groq
 
         system_instruction = (
             "You are an expert HR recruiter and talent analyst.\n"
             "Analyze the provided pre-screening interview transcript and generate a structured candidate evaluation in JSON format.\n\n"
+            "CRITICAL INSTRUCTION: If the transcript indicates the candidate declined or opted out during the greeting/intent check (e.g. 'not interested', 'no thanks'), output score: 0, strengths: [], weaknesses: ['Opted out of recruitment process'], and summary: 'Candidate explicitly declined the screening interview during initial intent check.'\n\n"
             "Output ONLY this JSON schema (no extra text, no markdown):\n"
             "{\n"
             "  \"score\": <integer 0-100>,\n"
@@ -68,7 +90,7 @@ class RankerAgent:
             "  \"strengths\": [\"<strength 1>\", \"<strength 2>\"],\n"
             "  \"weaknesses\": [\"<area 1>\"]\n"
             "}\n\n"
-            "Scoring rubric:\n"
+            "Scoring rubric for completed calls:\n"
             "- Answer completeness and relevance (40 pts)\n"
             "- Communication clarity and professionalism (30 pts)\n"
             "- Suitability signals (notice period, CTC fit, availability) (20 pts)\n"
@@ -99,28 +121,48 @@ class RankerAgent:
             f"{transcript_text}"
         )
 
-        print(f"{C_BLUE}[📊 ANALYST RANKER AGENT] Querying Ollama Model '{RANKER_MODEL}'...{C_RESET}")
-
         try:
-            response = ollama.chat(
-                model=RANKER_MODEL,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user",   "content": prompt}
-                ],
-                format='json'
-            )
-            raw_content = response['message']['content']
-            print(f"{C_GREEN}[📊 ANALYST RANKER AGENT] Raw LLM JSON:{C_RESET}\n{raw_content}")
+            if LLM_PROVIDER == "huggingface":
+                from huggingface_hub import InferenceClient
+                print(f"{C_BLUE}[📊 ANALYST RANKER AGENT] Using HuggingFace API. Model '{HF_RANKER_MODEL}'...{C_RESET}")
+                client = InferenceClient(api_key=HF_API_KEY)
+                completion = client.chat_completion(
+                    model=HF_RANKER_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user",   "content": prompt}
+                    ],
+                    temperature=0.2,
+                    max_tokens=512,
+                    response_format={"type": "json_object"}
+                )
+                raw_content = completion.choices[0].message.content.strip()
+            else:
+                from groq import Groq
+                print(f"{C_BLUE}[📊 ANALYST RANKER AGENT] Using Groq API. Model '{GROQ_RANKER_MODEL}'...{C_RESET}")
+                groq_client = Groq(api_key=GROQ_API_KEY)
+                completion = groq_client.chat.completions.create(
+                    model=GROQ_RANKER_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user",   "content": prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.2,
+                    max_tokens=512
+                )
+                raw_content = completion.choices[0].message.content.strip()
 
-            cleaned = raw_content.strip()
-            if cleaned.startswith("```"):
-                nl = cleaned.find("\n")
-                cleaned = cleaned[nl:].strip() if nl != -1 else cleaned
-                if cleaned.endswith("```"):
-                    cleaned = cleaned[:-3].strip()
+            # Clean up markdown code fences if present
+            if raw_content.startswith("```"):
+                nl = raw_content.find("\n")
+                raw_content = raw_content[nl:].strip() if nl != -1 else raw_content
+                if raw_content.endswith("```"):
+                    raw_content = raw_content[:-3].strip()
 
-            dossier = json.loads(cleaned)
+            print(f"{C_GREEN}[📊 ANALYST RANKER AGENT] Raw JSON Response:{C_RESET}\n{raw_content}")
+
+            dossier = json.loads(raw_content)
             dossier["avg_fluency_score"] = avg_fluency
             dossier["off_topic_flags"]   = off_topic_flags
             dossier["transcript"]        = conversation_history
@@ -135,7 +177,7 @@ class RankerAgent:
 
         except Exception as e:
             logger.error(f"Error in RankerAgent evaluation: {e}", exc_info=True)
-            print(f"{C_RED}[📊 ANALYST RANKER AGENT] Ollama error: {e}{C_RESET}")
+            print(f"{C_RED}[📊 ANALYST RANKER AGENT] API error ({LLM_PROVIDER}): {e}{C_RESET}")
             print(f"{C_YELLOW}[📊 ANALYST RANKER AGENT] Using keyword + fluency heuristic fallback.{C_RESET}")
 
         # ── Keyword + fluency heuristic fallback ──────────────────────────────
@@ -171,7 +213,7 @@ class RankerAgent:
         dossier = {
             "score": score,
             "summary": (
-                f"Automated pre-screening evaluation (Ollama unavailable). "
+                f"Automated pre-screening evaluation (Groq unavailable). "
                 f"Candidate addressed {len(matched)} key pre-screening topics."
                 + (f" Average fluency score: {avg_fluency}/5." if avg_fluency else "")
             ),

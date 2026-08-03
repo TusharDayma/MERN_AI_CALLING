@@ -1,3 +1,7 @@
+"""
+config.py — AntiTalk Python Service Configuration
+Root-level config, imported directly by all agents as `from config import ...`
+"""
 import os
 from dotenv import load_dotenv
 
@@ -6,15 +10,50 @@ load_dotenv()
 PORT = int(os.getenv("PORT", 8000))
 USE_MOCK_AGENTS = os.getenv("USE_MOCK_AGENTS", "true").lower() == "true"
 EXPRESS_WEBHOOK_URL = os.getenv("EXPRESS_WEBHOOK_URL", "http://localhost:5000/api/webhooks/call-completed")
-TWILIO_SAMPLE_RATE = int(os.getenv("TWILIO_SAMPLE_RATE", 8000))
-TWILIO_CHANNELS = int(os.getenv("TWILIO_CHANNELS", 1))
 
-# AI Model Configuration
-STT_MODEL = os.getenv("STT_MODEL", os.getenv("WHISPER_MODEL", "tiny.en"))
-WHISPER_MODEL = STT_MODEL
-TTS_MODEL = os.getenv("TTS_MODEL", "kokoro-v0_19.onnx")
-BRAIN_MODEL = os.getenv("BRAIN_MODEL", os.getenv("OLLAMA_MODEL", "llama3"))
-OLLAMA_MODEL = BRAIN_MODEL
-RANKER_MODEL = os.getenv("RANKER_MODEL", os.getenv("OLLAMA_MODEL", "llama3"))
-AI_SYSTEM_PROMPT = os.getenv("AI_SYSTEM_PROMPT", "You are a professional AI Recruiter. Keep responses concise.")
+# ─────────────────────────────────────────────────────────────────────────────
+# LLM Provider Selection: 'groq' (default) or 'huggingface'
+# ─────────────────────────────────────────────────────────────────────────────
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq").lower()
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Groq Cloud API — used for STT (Whisper) always; LLM/Ranker if LLM_PROVIDER=groq
+# ─────────────────────────────────────────────────────────────────────────────
+GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")
+GROQ_STT_MODEL    = os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo")
+GROQ_LLM_MODEL    = os.getenv("GROQ_LLM_MODEL", "llama-3.3-70b-versatile")
+GROQ_RANKER_MODEL = os.getenv("GROQ_RANKER_MODEL", "llama-3.3-70b-versatile")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hugging Face Inference API — used for LLM/Ranker if LLM_PROVIDER=huggingface
+# Get your free key at: https://huggingface.co/settings/tokens
+# ─────────────────────────────────────────────────────────────────────────────
+HF_API_KEY        = os.getenv("HF_API_KEY", "")
+HF_LLM_MODEL      = os.getenv("HF_LLM_MODEL", "mistralai/Mistral-7B-Instruct-v0.3")
+HF_RANKER_MODEL   = os.getenv("HF_RANKER_MODEL", "mistralai/Mistral-7B-Instruct-v0.3")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Exotel Audio Specs
+# AgentStream uses 8kHz μ-law PCM (same as Twilio Media Streams)
+# ─────────────────────────────────────────────────────────────────────────────
+EXOTEL_SAMPLE_RATE = int(os.getenv("EXOTEL_SAMPLE_RATE", 8000))
+EXOTEL_CHANNELS    = int(os.getenv("EXOTEL_CHANNELS", 1))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Legacy aliases — kept for backward compatibility with mock/test code
+# ─────────────────────────────────────────────────────────────────────────────
+STT_MODEL      = GROQ_STT_MODEL
+WHISPER_MODEL  = GROQ_STT_MODEL
+BRAIN_MODEL    = GROQ_LLM_MODEL
+RANKER_MODEL   = GROQ_RANKER_MODEL
+OLLAMA_MODEL   = GROQ_LLM_MODEL        # alias so old references don't break
+TTS_MODEL      = os.getenv("TTS_MODEL", "pyttsx3")
+
+# Legacy audio aliases to prevent test suite errors
+TWILIO_SAMPLE_RATE = EXOTEL_SAMPLE_RATE
+TWILIO_CHANNELS    = EXOTEL_CHANNELS
+
+AI_SYSTEM_PROMPT = os.getenv(
+    "AI_SYSTEM_PROMPT",
+    "You are a professional AI Recruiter. Keep responses concise and evaluate candidates technically."
+)

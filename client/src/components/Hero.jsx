@@ -1,108 +1,140 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Terminal, Activity, Bot } from 'lucide-react';
+import { ArrowRight, Terminal, Activity, Bot, Shield, Zap } from 'lucide-react';
+
+const STATS = [
+  { value: '<100ms', label: 'Voice latency' },
+  { value: '100%', label: 'On-premise AI' },
+  { value: '0', label: 'Data leakage' },
+];
 
 export default function Hero({ onBookDemo }) {
   return (
-    <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
-      {/* Background Gradients */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-background to-background" />
-      
-      <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center relative z-10">
-        <motion.div 
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8 }}
-          className="max-w-2xl"
+    <section className="relative min-h-screen flex items-center pt-16 bg-background overflow-hidden">
+      {/* Subtle grid background */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage:
+            'linear-gradient(#0F172A 1px,transparent 1px),linear-gradient(90deg,#0F172A 1px,transparent 1px)',
+          backgroundSize: '40px 40px',
+        }}
+      />
+      {/* Top blue accent glow */}
+      <div className="pointer-events-none absolute -top-48 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-primary/6 rounded-full blur-[100px]" />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-6 py-24 grid lg:grid-cols-2 gap-16 items-center">
+        {/* Left: Copy */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full mb-6">
-            <span className="text-xl">✨</span>
-            <span className="text-sm font-medium text-slate-300">Next-Gen Voice AI Technical Screening</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary-light border border-primary/20 rounded-full mb-8">
+            <Zap className="w-3.5 h-3.5 text-primary" />
+            <span className="text-primary text-[12px] font-semibold tracking-wide">Next-Gen Voice AI Technical Screening</span>
           </div>
-          
-          <h1 className="text-5xl lg:text-7xl font-extrabold text-white leading-[1.1] mb-6 tracking-tight">
-            Autonomous <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">AI Interviewing.</span><br />
+
+          <h1 className="text-5xl lg:text-6xl font-extrabold text-text-primary leading-[1.1] mb-6 tracking-tight">
+            Autonomous{' '}
+            <span className="text-primary">AI Interviewing.</span>
+            <br />
             Zero Latency.
           </h1>
-          
-          <p className="text-lg text-slate-400 mb-10 leading-relaxed">
-            Screen hundreds of technical candidates simultaneously with natural, local voice AI. Accelerate time-to-hire without compromising candidate privacy or rubric consistency.
+
+          <p className="text-lg text-text-secondary mb-10 leading-relaxed max-w-lg">
+            Screen hundreds of technical candidates simultaneously with natural, local voice AI.
+            Accelerate time-to-hire without compromising candidate privacy or rubric consistency.
           </p>
-          
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <button 
+
+          <div className="flex flex-col sm:flex-row gap-3 mb-14">
+            <button
               onClick={onBookDemo}
-              className="w-full sm:w-auto px-8 py-4 bg-primary hover:bg-primary-glow text-white font-semibold rounded-lg shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all flex items-center justify-center gap-2"
+              className="btn-primary"
             >
               Book a Live Demo
-              <ArrowRight className="w-5 h-5" />
+              <ArrowRight className="w-4 h-4" />
             </button>
-            <button className="w-full sm:w-auto px-8 py-4 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-lg border border-white/10 transition-all flex items-center justify-center gap-2">
-              <Terminal className="w-5 h-5 text-slate-400" />
+            <button className="btn btn-ghost border border-border text-text-secondary hover:text-text-primary hover:bg-surface">
+              <Terminal className="w-4 h-4" />
               Explore Docs
             </button>
           </div>
+
+          {/* Stats row */}
+          <div className="flex items-center gap-8 pt-6 border-t border-border">
+            {STATS.map(({ value, label }) => (
+              <div key={label}>
+                <p className="text-2xl font-extrabold text-text-primary tracking-tight">{value}</p>
+                <p className="text-xs text-text-muted font-medium mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
         </motion.div>
 
+        {/* Right: Dashboard Preview */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="relative lg:h-[600px] flex items-center justify-center"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15, ease: 'easeOut' }}
+          className="relative"
         >
-          {/* Mock Interactive Graphic */}
-          <div className="relative w-full max-w-md aspect-square bg-surface/50 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-6 overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-accent" />
-            
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-emerald-400" />
-                <span className="text-sm font-medium text-emerald-400">Connection Secure</span>
+          <div className="card p-0 overflow-hidden" style={{ boxShadow: '0 20px 60px rgba(15,23,42,0.12), 0 4px 16px rgba(15,23,42,0.08)' }}>
+            {/* Window chrome */}
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border bg-surface-raised">
+              <div className="w-3 h-3 rounded-full bg-danger/70" />
+              <div className="w-3 h-3 rounded-full bg-warning/70" />
+              <div className="w-3 h-3 rounded-full bg-success/70" />
+              <div className="ml-4 flex items-center gap-2 text-text-muted">
+                <Activity className="w-3.5 h-3.5 text-success" />
+                <span className="text-xs font-medium text-text-secondary">Connection Secure</span>
+                <span className="ml-auto text-[11px] font-mono text-text-muted">Latency: &lt;100ms</span>
               </div>
-              <span className="text-xs font-mono text-slate-400">Latency: &lt;100ms</span>
             </div>
 
-            <div className="space-y-6">
+            {/* Waveform visualization */}
+            <div className="p-6 space-y-4">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-end gap-1 h-12">
-                  {[...Array(20)].map((_, j) => (
-                    <motion.div
-                      key={j}
-                      animate={{
-                        height: ["20%", "100%", "20%"],
-                      }}
-                      transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                        delay: (i * 0.1) + (j * 0.05),
-                        ease: "easeInOut"
-                      }}
-                      className="w-full bg-primary/40 rounded-t-sm"
-                    />
-                  ))}
+                <div key={i} className="flex items-end gap-0.5 h-10">
+                  {[...Array(28)].map((_, j) => {
+                    const pct = 20 + Math.sin((i + j) * 0.8) * 40 + Math.random() * 20;
+                    return (
+                      <div
+                        key={j}
+                        className="flex-1 bg-primary/20 rounded-sm"
+                        style={{ height: `${Math.max(8, pct)}%` }}
+                      />
+                    );
+                  })}
                 </div>
               ))}
             </div>
 
-            <div className="mt-8 p-4 bg-black/40 rounded-lg border border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                  <Bot className="w-6 h-6 text-white" />
+            {/* Status footer */}
+            <div className="px-6 pb-6">
+              <div className="flex items-center gap-3 p-4 bg-surface-raised border border-border rounded-xl">
+                <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+                  <Bot className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-white">Local AI Orchestrator</div>
-                  <div className="text-xs text-slate-400">Processing audio stream...</div>
+                  <p className="text-sm font-semibold text-text-primary">Local AI Orchestrator</p>
+                  <p className="text-xs text-text-muted">Processing audio stream...</p>
+                </div>
+                <div className="ml-auto flex items-center gap-1.5 badge-success">
+                  <span className="w-1.5 h-1.5 bg-success rounded-full animate-pulse" />
+                  Live
                 </div>
               </div>
             </div>
-            
-            <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-primary/20 rounded-full blur-3xl" />
-            <div className="absolute -top-10 -left-10 w-40 h-40 bg-accent/20 rounded-full blur-3xl" />
+          </div>
+
+          {/* Trust badge */}
+          <div className="absolute -bottom-4 -right-4 flex items-center gap-2 bg-surface border border-border rounded-xl px-4 py-3 shadow-lg">
+            <Shield className="w-4 h-4 text-success" />
+            <span className="text-xs font-semibold text-text-primary">100% On-Premise</span>
           </div>
         </motion.div>
       </div>
     </section>
   );
 }
-
-// Need to import Bot at the top since I used it inside Hero
