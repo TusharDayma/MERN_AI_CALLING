@@ -150,17 +150,51 @@ If the server and ngrok tunnel are functioning, it will return:
 }
 ```
 
-### 2. Standalone AI Agent Verification (CLI)
-You can test the conversational state transitions and scoring algorithm inside your command prompt without dialing Twilio or launching the browser UI:
+---
+
+## 🧪 Running Tests Independently (Standalone)
+
+You can run individual test suites and interactive test applications separately without needing to launch the entire full-stack application or ngrok tunnel.
+
+### 1. Automated Python Test Suite (51 Unit & Integration Tests)
+Runs full mock pipeline tests, STT agent, LLM agent state transitions, Ranker dossier outputs, and webhook fallbacks:
 ```bash
 cd python_service
-.\venv\Scripts\python.exe test_agents.py
+python run_tests.py
 ```
-* Enter `M` for Mock Agent simulation or `R` for real local Ollama (Llama 3) simulation, and converse via text inputs.
+
+### 2. Standalone Groq Cloud LLM Integration Test
+Tests live API interaction directly with the Groq Cloud LLM agent (`llama-3.3-70b-versatile`):
+```bash
+cd python_service
+python test_groq.py
+```
+
+### 3. Interactive Web Test UI (Browser Sandbox)
+Launches a standalone FastAPI test server serving an interactive browser interface at `http://localhost:8005`:
+```bash
+cd agent_test
+python -m uvicorn main:app --port 8005
+```
+*Open [http://localhost:8005](http://localhost:8005) in your browser to chat directly with the AI candidate screening agent.*
+
+### 4. Interactive Agent Sandbox Simulator (CLI)
+Simulate candidate voice/text calls with configurable parameters interactively in your terminal:
+```bash
+cd python_service
+python run_agent_sandbox.py
+```
+
+### 5. Standalone AI Agent CLI Tester
+```bash
+cd python_service
+python test_agents.py
+```
 
 ---
 
 ## 🛠️ Phase 4: Troubleshooting
+
 
 > [!WARNING]
 > **ERR_NGROK_3200 (Endpoint is offline)**

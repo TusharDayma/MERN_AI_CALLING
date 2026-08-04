@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice AI Agent Tester</title>
+    <title>Voice AI Agent Tester (Full Pipeline)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -15,6 +15,7 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            padding: 2rem;
         }
         .card {
             background: rgba(255,255,255,0.05);
@@ -22,13 +23,36 @@
             backdrop-filter: blur(16px);
             padding: 2.5rem 2rem;
             border-radius: 1.25rem;
-            max-width: 460px;
-            width: 95%;
+            max-width: 600px;
+            width: 100%;
             text-align: center;
             box-shadow: 0 25px 50px rgba(0,0,0,0.4);
         }
         h2 { font-size: 1.6rem; margin-bottom: 0.5rem; }
         p.sub { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem; line-height: 1.6; }
+        
+        .setup {
+            text-align: left;
+            background: rgba(0,0,0,0.2);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .setup label { display: block; margin-bottom: 0.5rem; color: #94a3b8; font-size: 0.9rem; }
+        .setup textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.3);
+            color: #f1f5f9;
+            font-family: inherit;
+            margin-bottom: 1rem;
+            min-height: 100px;
+            resize: vertical;
+        }
+
         .orb {
             width: 90px; height: 90px;
             border-radius: 50%;
@@ -39,13 +63,9 @@
             box-shadow: 0 0 0 0 rgba(99,102,241,0.5);
             transition: transform 0.3s;
         }
-        .orb.listening {
-            animation: orbPulse 1.5s infinite;
-        }
-        .orb.speaking {
-            animation: orbBounce 0.4s infinite alternate;
-            box-shadow: 0 0 30px rgba(99,102,241,0.8);
-        }
+        .orb.listening { animation: orbPulse 1.5s infinite; }
+        .orb.speaking { animation: orbBounce 0.4s infinite alternate; box-shadow: 0 0 30px rgba(99,102,241,0.8); }
+        
         @keyframes orbPulse {
             0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
             70% { box-shadow: 0 0 0 20px rgba(99,102,241,0); }
@@ -55,6 +75,7 @@
             from { transform: scale(1); }
             to { transform: scale(1.1); }
         }
+
         .btn {
             width: 100%; padding: 0.85rem 1.5rem;
             border: none; border-radius: 0.65rem;
@@ -67,6 +88,7 @@
         .btn-danger { background: #dc2626; color: white; }
         .btn-danger:hover { background: #b91c1c; }
         .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+        
         .status-badge {
             display: inline-block;
             padding: 0.35rem 0.85rem;
@@ -80,6 +102,7 @@
         }
         .status-badge.connected { background: rgba(16,185,129,0.15); border-color: #10b981; color: #6ee7b7; }
         .status-badge.error { background: rgba(239,68,68,0.15); border-color: #ef4444; color: #fca5a5; }
+        
         #log {
             margin-top: 1.25rem;
             background: rgba(0,0,0,0.3);
@@ -101,10 +124,18 @@
 <body>
     <div class="card">
         <div id="orb" class="orb">🤖</div>
-        <h2>Voice AI Tester</h2>
-        <p class="sub">Test your interview AI agent directly in the browser.<br>No Exotel, no KYC needed.</p>
-        <button class="btn btn-primary" id="startBtn">🎤 Connect & Speak</button>
-        <button class="btn btn-danger" id="stopBtn" style="display:none">⛔ Stop</button>
+        <h2>Voice AI Tester (Full Pipeline)</h2>
+        <p class="sub">Test STT -> LLM -> TTS -> Ranker directly from your browser.</p>
+        
+        <div class="setup" id="setupDiv">
+            <label>Configure Questions (one per line):</label>
+            <textarea id="questionsInput">Tell me about yourself and your work experience.
+Can you describe a challenging problem you faced recently?
+Why are you interested in this role?</textarea>
+            <button class="btn btn-primary" id="startBtn">🎤 Connect & Speak</button>
+        </div>
+
+        <button class="btn btn-danger" id="stopBtn" style="display:none">⛔ Stop Call</button>
         <div id="statusBadge" class="status-badge">● Disconnected</div>
         <div id="log"></div>
     </div>
@@ -115,10 +146,11 @@ const stopBtn  = document.getElementById('stopBtn');
 const badge    = document.getElementById('statusBadge');
 const orb      = document.getElementById('orb');
 const logEl    = document.getElementById('log');
+const setupDiv = document.getElementById('setupDiv');
 
 let ws = null;
-let micCtx = null;   // AudioContext for microphone capture (8000 Hz)
-let spkCtx = null;   // AudioContext for speaker playback (48000 Hz native)
+let micCtx = null;
+let spkCtx = null;
 let mediaStream = null;
 let processor = null;
 let nextPlayTime = 0;
@@ -190,9 +222,15 @@ function resample(data, srcRate, dstRate) {
 
 async function startCall() {
     try {
+        const rawQs = document.getElementById("questionsInput").value.split('\n').map(q => q.trim()).filter(q => q);
+        if(rawQs.length === 0) return alert("Please enter at least one question.");
+        
+        // Format questions array for backend
+        const formattedQuestions = rawQs.map(q => ({ text: q }));
+        
         startBtn.disabled = true;
 
-        // CREATE CONTEXTS SYNCHRONOUSLY IN CLICK HANDLER (Browser autoplay policy)
+        // CREATE CONTEXTS SYNCHRONOUSLY IN CLICK HANDLER
         micCtx = new (window.AudioContext || window.webkitAudioContext)();
         spkCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (spkCtx.state === 'suspended') spkCtx.resume();
@@ -203,101 +241,77 @@ async function startCall() {
         addLog('Requesting microphone access…');
 
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        addLog(`Mic AudioContext rate: ${micCtx.sampleRate} Hz`, 'info');
 
         badge.textContent = '● Connecting…';
-        addLog('Connecting to AI engine…');
+        addLog('Connecting to Main AI engine (Port 8000)…');
+        setupDiv.style.display = 'none';
 
-        const questions = JSON.stringify([
-            { text: "Tell me about yourself and your work experience." },
-            { text: "Can you describe a challenging problem you faced recently and how you solved it?" },
-            { text: "Why are you interested in this role and our company?" },
-            { text: "What are your salary expectations?" },
-            { text: "Do you have any questions for us?" }
-        ]);
-        const wsUrl = `ws://localhost:8000/media-stream?candidateId=BROWSER_TEST&is_scheduled=true&candidateName=Browser%20Tester&questionsJson=${encodeURIComponent(questions)}`;
+        const qsStr = JSON.stringify(formattedQuestions);
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host || 'localhost:8000';
+        const wsUrl = `${protocol}//${host}/media-stream?candidateId=CUSTOM_TEST&is_scheduled=true&candidateName=Test%20Candidate&questionsJson=${encodeURIComponent(qsStr)}`;
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
             badge.className = 'status-badge connected';
             badge.textContent = '● Connected — AI is greeting you…';
             orb.className = 'orb speaking';
-            startBtn.style.display = 'none';
             stopBtn.style.display = 'block';
-            addLog('WebSocket connected!', 'ok');
+            addLog('WebSocket connected to full pipeline!', 'ok');
 
-            // Send the "start" event that the orchestrator expects
+            // Send start event
             ws.send(JSON.stringify({
                 event: "start",
-                streamSid: "browser_test_stream_001",
-                start: { customParameters: { candidateId: "BROWSER_TEST" } }
+                streamSid: "custom_test_stream_001",
+                start: { customParameters: { candidateId: "CUSTOM_TEST" } }
             }));
 
-            // ---- Mic capture & send to WS ----
+            // Mic capture
             const source = micCtx.createMediaStreamSource(mediaStream);
             processor = micCtx.createScriptProcessor(2048, 1, 1);
             source.connect(processor);
             processor.connect(micCtx.destination);
-
             const nativeRate = micCtx.sampleRate;
 
             processor.onaudioprocess = (e) => {
                 if (!ws || ws.readyState !== WebSocket.OPEN) return;
                 const nativePCM = e.inputBuffer.getChannelData(0);
-                // Downsample from native rate to 8000 Hz
                 const pcm8k = resample(nativePCM, nativeRate, 8000);
-                // Encode to mu-law
                 const mulaw = new Uint8Array(pcm8k.length);
                 for (let i = 0; i < pcm8k.length; i++) mulaw[i] = float32ToMulaw(pcm8k[i]);
                 ws.send(JSON.stringify({ event: "media", media: { payload: toBase64(mulaw) } }));
             };
         };
 
-        // ---- Receive & play audio from AI ----
         let mediaChunksReceived = 0;
         ws.onmessage = (evt) => {
             let data;
             try { data = JSON.parse(evt.data); } catch { return; }
 
             if (data.event === 'media' && data.media && data.media.payload) {
-                // Resume AudioContext (browser requires user-gesture policy)
-                if (spkCtx.state === 'suspended') {
-                    addLog('Speaker context is suspended, attempting to resume...', 'info');
-                    spkCtx.resume().then(() => addLog(`AudioContext resumed successfully. State: ${spkCtx.state}`, 'ok'))
-                                   .catch(e => addLog(`Failed to resume AudioContext: ${e}`, 'err'));
-                }
-
+                if (spkCtx.state === 'suspended') spkCtx.resume();
                 mediaChunksReceived++;
-                if (mediaChunksReceived === 1) addLog(`🔊 First audio chunk received! Payload size: ${data.media.payload.length} chars`, 'ok');
-                
                 orb.className = 'orb speaking';
-                const mulaw = fromBase64(data.media.payload);
                 
-                if (mediaChunksReceived % 20 === 0) {
-                    addLog(`Received ${mediaChunksReceived} audio chunks so far...`, 'info');
-                }
-
-                // Decode mu-law → Float32
+                const mulaw = fromBase64(data.media.payload);
                 const float32 = new Float32Array(mulaw.length);
                 for (let i = 0; i < mulaw.length; i++) float32[i] = mulawToFloat32(mulaw[i]);
 
-                // Resample from 8000 Hz to native speaker rate
                 const nativeRate = spkCtx.sampleRate;
                 const resampled = resample(float32, 8000, nativeRate);
 
                 const audioBuffer = spkCtx.createBuffer(1, resampled.length, nativeRate);
                 audioBuffer.getChannelData(0).set(resampled);
-
                 const src = spkCtx.createBufferSource();
                 src.buffer = audioBuffer;
                 src.connect(spkCtx.destination);
 
-                // Seamlessly queue audio
                 if (nextPlayTime < spkCtx.currentTime) {
-                    nextPlayTime = spkCtx.currentTime + 0.05; // 50ms buffer
+                    nextPlayTime = spkCtx.currentTime + 0.05;
                 }
                 src.start(nextPlayTime);
                 nextPlayTime += audioBuffer.duration;
+                
             } else if (data.event === 'clear') {
                 nextPlayTime = 0;
                 orb.className = 'orb listening';
@@ -307,13 +321,12 @@ async function startCall() {
         };
 
         ws.onerror = (e) => {
-            addLog('WebSocket error — is the Python server running on port 8000?', 'err');
+            addLog('WebSocket error — is the main Python server running on port 8000?', 'err');
             badge.className = 'status-badge error';
             badge.textContent = '● Connection Error';
         };
 
         ws.onclose = () => {
-            // Guard against double-call
             if (!ws) return;
             ws = null;
             stopCall();
@@ -332,13 +345,12 @@ function stopCall() {
     if (processor) { processor.disconnect(); processor = null; }
     if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
     if (micCtx) { micCtx.close(); micCtx = null; }
-    // Keep spkCtx alive until queued audio finishes, then close
     setTimeout(() => { if (spkCtx) { spkCtx.close(); spkCtx = null; } }, 3000);
 
     ws = null;
     nextPlayTime = 0;
 
-    startBtn.style.display = 'block';
+    setupDiv.style.display = 'block';
     startBtn.disabled = false;
     stopBtn.style.display = 'none';
     badge.className = 'status-badge';

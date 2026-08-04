@@ -1,21 +1,26 @@
 import json
 import logging
 import asyncio
+import time
 from fastapi import WebSocket, WebSocketDisconnect
 from agents.stt_agent import STTAgent
 from agents.llm_agent import LLMAgent
 from agents.tts_agent import TTSAgent
 from agents.ranker_agent import RankerAgent
 from utils.webhook_client import post_call_results
-from utils.audio_utils import decode_twilio_payload, compute_rms
+from utils.audio_utils import decode_twilio_payload_to_pcm16, compute_rms_pcm
 
 logger = logging.getLogger(__name__)
 
-VAD_SILENCE_THRESHOLD = 1500
-VAD_SILENCE_CHUNKS_NEEDED = 50
-VAD_MAX_SPEECH_BYTES = 160 * 1500
+# Tuned VAD constants for 8kHz 16-bit PCM (320 bytes per 20ms chunk)
+VAD_SILENCE_THRESHOLD = 350
+VAD_SILENCE_CHUNKS_NEEDED = 20  # ~400ms of silence to trigger response
+VAD_MAX_SPEECH_BYTES = 320 * 1500  # Max ~30 sec continuous speech
+
 
 class AudioStreamManager:
+    """Manages real-time WebSocket audio streaming, VAD, barge-in, and TTS/STT/LLM orchestration."""
+
     def __init__(self, websocket: WebSocket, stream_sid: str, tts_agent: TTSAgent, llm_agent: LLMAgent, stt_agent: STTAgent):
         self.websocket = websocket
         self.stream_sid = stream_sid
@@ -33,14 +38,16 @@ class AudioStreamManager:
         self.speaking_start_time = 0
 
     async def send_log(self, message: str):
+        """Sends non-blocking log notification over WebSocket."""
         try:
             await self.websocket.send_text(json.dumps({"event": "log", "message": message}))
         except Exception:
             pass
 
     async def stream_tts(self, text: str):
+        """Streams generated TTS audio chunks to client WebSocket."""
         try:
-            await self.send_log(f"Starting to speak: '{text[:30]}...'")
+            await self.send_log(f"Speaking: '{text[:30]}...'")
             async for media_payload in self.tts.generate_audio_payloads(text):
                 if self._tts_cancel_event.is_set():
                     break
@@ -51,31 +58,31 @@ class AudioStreamManager:
                     "media": {"payload": media_payload}
                 }
                 await self.websocket.send_text(json.dumps(outbound))
-            await self.send_log("Finished speaking chunk.")
         except Exception as e:
-            logger.error(f"Error in stream_tts: {e}")
-            await self.send_log(f"TTS Error: {e}")
+            logger.error(f"[Orchestrator] Error in stream_tts: {e}")
 
     async def run_tts_wrapper(self, text: str):
-        import time
+        """Wraps TTS execution with timing and cancellation tracking."""
         self.is_speaking = True
         self.speaking_start_time = time.time()
         self._tts_cancel_event.clear()
         try:
             await self.stream_tts(text)
         except asyncio.CancelledError:
-            logger.info("TTS task cancelled (barge-in).")
+            logger.info("[Orchestrator] TTS task cancelled (barge-in).")
             await self.send_log("Speech cancelled due to barge-in.")
         finally:
             self.is_speaking = False
 
     def cancel_tts(self):
+        """Cancels active TTS task immediately on barge-in or user input."""
         if self.tts_task and not self.tts_task.done():
             self._tts_cancel_event.set()
             self.tts_task.cancel()
         self.is_speaking = False
 
     async def process_utterance(self, raw_audio: bytes):
+        """Passes captured candidate utterance audio to STT -> LLM -> TTS pipeline."""
         if not raw_audio or not self.llm:
             return
 
@@ -85,37 +92,39 @@ class AudioStreamManager:
             await self.send_log("STT returned empty text.")
             return
 
-        logger.info(f"Candidate said: '{text}'")
+        logger.info(f"[Orchestrator] Candidate said: '{text}'")
         await self.send_log(f"You said: '{text}'")
+        
         ai_reply = await self.llm.generate_response(text)
-        logger.info(f"AI response: '{ai_reply}'")
+        logger.info(f"[Orchestrator] AI response: '{ai_reply}'")
 
         self.cancel_tts()
         self.tts_task = asyncio.create_task(self.run_tts_wrapper(ai_reply))
 
     async def handle_media(self, payload: str):
-        import time
+        """Decodes inbound media frames and processes Voice Activity Detection (VAD)."""
         if not payload:
             return
 
-        raw_chunk = decode_twilio_payload(payload)
-        rms = compute_rms(raw_chunk)
+        pcm_chunk = decode_twilio_payload_to_pcm16(payload)
+        rms = compute_rms_pcm(pcm_chunk)
 
+        # Barge-in detection during AI speech
         if self.is_speaking:
-            # Prevent barge-in for the first 1.5 seconds to avoid immediate noise cancellation
             time_speaking = time.time() - self.speaking_start_time
-            if time_speaking > 1.5 and rms > VAD_SILENCE_THRESHOLD * 2:
-                logger.info(f"Barge-in detected! RMS: {rms} > {VAD_SILENCE_THRESHOLD * 2}")
-                await self.send_log(f"Barge-in detected! (Noise level {rms})")
+            if time_speaking > 1.2 and rms > 3000:
+                logger.info(f"[Orchestrator] Barge-in detected! RMS: {rms}")
+                await self.send_log(f"Barge-in detected! (Level {rms})")
                 self.cancel_tts()
                 self.speech_buffer.clear()
                 self.silence_count = 0
             return
 
+        # VAD Speech & Silence tracking
         if rms < VAD_SILENCE_THRESHOLD:
             if self.candidate_spoke:
                 self.silence_count += 1
-                self.speech_buffer.extend(raw_chunk)
+                self.speech_buffer.extend(pcm_chunk)
                 if self.silence_count >= VAD_SILENCE_CHUNKS_NEEDED:
                     audio_to_process = bytes(self.speech_buffer)
                     self.speech_buffer.clear()
@@ -124,10 +133,10 @@ class AudioStreamManager:
                     await self.process_utterance(audio_to_process)
         else:
             if not self.candidate_spoke:
-                await self.send_log("Detected speech/noise, capturing...")
+                await self.send_log("Detected candidate speech...")
             self.candidate_spoke = True
             self.silence_count = 0
-            self.speech_buffer.extend(raw_chunk)
+            self.speech_buffer.extend(pcm_chunk)
             if len(self.speech_buffer) >= VAD_MAX_SPEECH_BYTES:
                 audio_to_process = bytes(self.speech_buffer)
                 self.speech_buffer.clear()
@@ -135,7 +144,8 @@ class AudioStreamManager:
                 await self.process_utterance(audio_to_process)
 
     def clear_state(self):
-        logger.info("Exotel 'clear' event received — flushing TTS task and speech buffers.")
+        """Flushes active buffers and TTS task on clear signal."""
+        logger.info("[Orchestrator] Clear event received — flushing state.")
         self.cancel_tts()
         self.speech_buffer.clear()
         self.silence_count = 0
@@ -143,15 +153,15 @@ class AudioStreamManager:
 
 
 async def handle_interview_stream(websocket: WebSocket):
+    """FastAPI WebSocket connection endpoint handler."""
     await websocket.accept()
-    logger.info("WebSocket connection accepted.")
+    logger.info("[Orchestrator] WebSocket connection accepted.")
 
     stt = STTAgent()
     tts = TTSAgent()
     ranker = RankerAgent()
     llm = None
     stream_manager = None
-    
     candidate_id = None
 
     try:
@@ -165,10 +175,26 @@ async def handle_interview_stream(websocket: WebSocket):
                 stream_sid = data.get("streamSid")
                 custom_params = start_data.get("customParameters", {})
 
-                candidate_id = websocket.query_params.get("candidateId") or custom_params.get("candidateId") or custom_params.get("candidate_id")
-                questions_json = websocket.query_params.get("questionsJson") or custom_params.get("questionsJson") or custom_params.get("questions_json", "[]")
-                candidate_name = websocket.query_params.get("candidateName") or custom_params.get("candidateName") or custom_params.get("candidate_name", "Candidate")
-                is_scheduled_str = websocket.query_params.get("is_scheduled") or custom_params.get("is_scheduled") or "false"
+                candidate_id = (
+                    websocket.query_params.get("candidateId") or 
+                    custom_params.get("candidateId") or 
+                    custom_params.get("candidate_id")
+                )
+                questions_json = (
+                    websocket.query_params.get("questionsJson") or 
+                    custom_params.get("questionsJson") or 
+                    custom_params.get("questions_json", "[]")
+                )
+                candidate_name = (
+                    websocket.query_params.get("candidateName") or 
+                    custom_params.get("candidateName") or 
+                    custom_params.get("candidate_name", "Candidate")
+                )
+                is_scheduled_str = (
+                    websocket.query_params.get("is_scheduled") or 
+                    custom_params.get("is_scheduled") or 
+                    "false"
+                )
                 is_scheduled_flag = str(is_scheduled_str).lower() == "true"
 
                 try:
@@ -179,7 +205,7 @@ async def handle_interview_stream(websocket: WebSocket):
                 questions = [q.get("text", "") for q in questions_raw if q.get("text")]
                 key_criteria = [q.get("key_criteria", "") for q in questions_raw if q.get("text")]
 
-                logger.info(f"Stream started. CandidateID={candidate_id}, Questions={len(questions)}, Scheduled={is_scheduled_flag}")
+                logger.info(f"[Orchestrator] Stream started. CandidateID={candidate_id}, Questions={len(questions)}, Scheduled={is_scheduled_flag}")
 
                 llm = LLMAgent(
                     candidate_name=candidate_name,
@@ -190,7 +216,6 @@ async def handle_interview_stream(websocket: WebSocket):
                 )
 
                 stream_manager = AudioStreamManager(websocket, stream_sid, tts, llm, stt)
-                
                 greeting = llm.get_initial_greeting()
                 stream_manager.tts_task = asyncio.create_task(stream_manager.run_tts_wrapper(greeting))
 
@@ -199,7 +224,7 @@ async def handle_interview_stream(websocket: WebSocket):
                     await stream_manager.handle_media(data.get("media", {}).get("payload"))
 
             elif event == "stop":
-                logger.info("Stream stop received (Exotel/Twilio).")
+                logger.info("[Orchestrator] Stream stop event received.")
                 break
 
             elif event == "clear":
@@ -207,9 +232,9 @@ async def handle_interview_stream(websocket: WebSocket):
                     stream_manager.clear_state()
 
     except WebSocketDisconnect:
-        logger.info("WebSocket disconnected.")
+        logger.info("[Orchestrator] WebSocket disconnected.")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}", exc_info=True)
+        logger.error(f"[Orchestrator] WebSocket error: {e}", exc_info=True)
     finally:
         if stream_manager:
             stream_manager.cancel_tts()

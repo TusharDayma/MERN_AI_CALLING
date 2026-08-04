@@ -1,34 +1,26 @@
-﻿"""
+"""
 agents/stt_agent.py
-Speech-to-Text Agent — Groq Whisper API implementation.
-
-Real mode: Writes raw PCM audio to a temporary WAV file and submits it to
-           Groq's whisper-large-v3-turbo endpoint for ultra-low-latency transcription.
-
-Mock mode: Returns deterministic pre-scripted candidate responses for rapid
-           local development without any cloud API calls.
+Speech-to-Text Agent — Groq Whisper API implementation with in-memory audio processing.
 """
 
 import logging
 import asyncio
-import os
+import io
 import wave
-import tempfile
 from config import USE_MOCK_AGENTS, GROQ_API_KEY, GROQ_STT_MODEL
+from utils.audio_utils import resample_pcm8k_to_pcm16k
 
 logger = logging.getLogger(__name__)
 
-# VAD/audio constants — match Exotel's 8kHz μ-law stream spec
-PCM_SAMPLE_RATE = 8000
-PCM_SAMPLE_WIDTH = 2    # 16-bit PCM (2 bytes)
+STT_SAMPLE_RATE = 16000
+PCM_SAMPLE_WIDTH = 2    # 16-bit PCM
 PCM_CHANNELS = 1        # Mono
 
 
 class STTAgent:
     """
-    Converts raw PCM audio bytes → transcript text via Groq Whisper API.
-    Implements the exact same public interface as the legacy faster-whisper agent
-    so the orchestrator requires zero changes.
+    Converts raw 8kHz PCM audio bytes -> 16kHz PCM -> transcript text via Groq Whisper API.
+    Uses in-memory ByteIO buffers to eliminate disk I/O latency.
     """
 
     def __init__(self):
@@ -38,35 +30,32 @@ class STTAgent:
 
         if not self.is_mock:
             if not GROQ_API_KEY:
-                logger.error(
-                    "[STT Agent] GROQ_API_KEY is not set. "
-                    "Set USE_MOCK_AGENTS=true or add GROQ_API_KEY to your .env."
-                )
+                logger.error("[STT Agent] GROQ_API_KEY is not set.")
             else:
                 try:
                     from groq import Groq
                     self._groq_client = Groq(api_key=GROQ_API_KEY)
-                    logger.info(f"[STT Agent] Groq client initialised. Model: {GROQ_STT_MODEL}")
+                    logger.info(f"[STT Agent] Groq client initialized. Model: {GROQ_STT_MODEL}")
                 except ImportError:
-                    logger.error("[STT Agent] groq package not installed. Run: pip install groq")
+                    logger.error("[STT Agent] groq package not installed.")
 
-    # ── Public Interface ──────────────────────────────────────────────────────
+        # Common Whisper ambient noise hallucination phrases for instant filtering
+        self._hallucination_phrases = {
+            "subtitles by", "amara.org", "thank you for watching",
+            "subscribe to", "i'll take the hand", "stop the shot at you",
+            "like and subscribe", "bye bye", "mbc", "you", "thanks for watching"
+        }
 
     async def process_audio(self, pcm_bytes: bytes) -> str:
-        """
-        Accepts raw 8kHz 16-bit mono PCM bytes and returns a transcript string.
-        This is the primary entry point called by the interview orchestrator.
-        """
+        """Processes raw 8kHz 16-bit mono PCM bytes and returns transcript string."""
         if self.is_mock or self._groq_client is None:
             return await self._mock_transcribe()
 
         return await asyncio.to_thread(self._transcribe_with_groq, pcm_bytes)
 
-    # ── Private Helpers ───────────────────────────────────────────────────────
-
     async def _mock_transcribe(self) -> str:
         """Returns scripted candidate responses for local development."""
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(0.05)
         self.call_count += 1
 
         mock_replies = {
@@ -78,49 +67,54 @@ class STTAgent:
             6: "I prefer a hybrid model — 2 to 3 days in office per week.",
             7: "Thank you very much. Looking forward to hearing from your team. Goodbye.",
         }
-
-        reply = mock_replies.get(self.call_count, "I have strong experience and am actively seeking opportunities.")
-        print(f"\033[93m[🎙️ STT AGENT] [MOCK] Transcript: \033[0m\"{reply}\"")
-        return reply
+        return mock_replies.get(self.call_count, "I have strong experience and am actively seeking opportunities.")
 
     def _transcribe_with_groq(self, pcm_bytes: bytes) -> str:
         """
-        Blocking function (runs in a thread via asyncio.to_thread):
-          1. Writes PCM bytes to a temporary WAV file.
-          2. Calls Groq's audio.transcriptions.create API.
-          3. Returns the transcript text.
+        In-Memory Transcription:
+          1. Resamples 8kHz PCM to 16kHz PCM.
+          2. Writes WAV header + PCM frames into memory io.BytesIO.
+          3. Submits directly to Groq Whisper API.
         """
-        tmp_path = None
-        try:
-            # Write PCM to a temporary WAV so Groq can parse it
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                tmp_path = tmp.name
+        if len(pcm_bytes) < 1600:
+            logger.info("[STT Agent] Audio chunk too short (<100ms). Skipping.")
+            return ""
 
-            with wave.open(tmp_path, "wb") as wf:
+        try:
+            pcm16k_bytes = resample_pcm8k_to_pcm16k(pcm_bytes)
+
+            # Build in-memory WAV buffer
+            wav_io = io.BytesIO()
+            with wave.open(wav_io, "wb") as wf:
                 wf.setnchannels(PCM_CHANNELS)
                 wf.setsampwidth(PCM_SAMPLE_WIDTH)
-                wf.setframerate(PCM_SAMPLE_RATE)
-                wf.writeframes(pcm_bytes)
+                wf.setframerate(STT_SAMPLE_RATE)
+                wf.writeframes(pcm16k_bytes)
+            
+            wav_bytes = wav_io.getvalue()
+            wav_io.seek(0)
+            wav_io.name = "audio.wav"
 
-            with open(tmp_path, "rb") as audio_file:
-                transcription = self._groq_client.audio.transcriptions.create(
-                    file=("audio.wav", audio_file, "audio/wav"),
-                    model=GROQ_STT_MODEL,
-                    response_format="text"
-                )
+            transcription = self._groq_client.audio.transcriptions.create(
+                file=("audio.wav", wav_bytes, "audio/wav"),
+                model=GROQ_STT_MODEL,
+                language="en",
+                temperature=0.0,
+                prompt="Candidate response to HR technical interview:",
+                response_format="text"
+            )
 
-            # Groq returns a plain string when response_format="text"
             text = transcription.strip() if isinstance(transcription, str) else str(transcription).strip()
-            print(f"\033[93m[🎙️ STT AGENT] Groq transcript: \033[0m\"{text}\"")
+            text_lower = text.lower().strip()
+
+            # Filter ambient noise hallucinations
+            if not text_lower or text_lower in self._hallucination_phrases or any(h in text_lower for h in list(self._hallucination_phrases)[:7]):
+                logger.info(f"[STT Agent] Filtered noise hallucination: '{text}'")
+                return ""
+
+            logger.info(f"[STT Agent] Groq transcript: '{text}'")
             return text
 
         except Exception as e:
             logger.error(f"[STT Agent] Groq transcription failed: {e}", exc_info=True)
             return ""
-
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                try:
-                    os.remove(tmp_path)
-                except OSError:
-                    pass

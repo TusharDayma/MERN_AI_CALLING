@@ -1,98 +1,101 @@
-﻿from config import USE_MOCK_AGENTS
+from config import USE_MOCK_AGENTS, FISH_AUDIO_API_KEY, FISH_AUDIO_MODEL, FISH_AUDIO_VOICE_ID
 import asyncio
 import logging
-import uuid
-import os
+import io
 import wave
 import audioop
-import tempfile
+import os
 import edge_tts
 from utils.audio_utils import encode_twilio_payload
+from services.fish_audio_tts import FishAudioTTS
 
 logger = logging.getLogger(__name__)
 
-# Best English voice from Microsoft Edge TTS
-EDGE_TTS_VOICE = "en-US-JennyNeural"
+EDGE_TTS_VOICE = os.getenv("TTS_VOICE", "en-US-AvaNeural")
 
 
 class TTSAgent:
+    """
+    Text-to-Speech synthesis agent.
+    Synthesizes speech via Fish Audio S2.1 Pro or Edge TTS fallback, and streams 8kHz mulaw base64 audio chunks.
+    Uses in-memory processing to eliminate subprocess and disk I/O overhead.
+    """
+
     def __init__(self):
         self.is_mock = USE_MOCK_AGENTS
-        logger.info("[TTS Agent] Using Microsoft Edge TTS (edge-tts). Voice: " + EDGE_TTS_VOICE)
+        self.fish_audio = FishAudioTTS(
+            api_key=FISH_AUDIO_API_KEY,
+            model=FISH_AUDIO_MODEL,
+            voice_id=FISH_AUDIO_VOICE_ID,
+        ) if FISH_AUDIO_API_KEY else None
 
     async def generate_audio_payloads(self, text: str):
-        """
-        Converts text to speech using edge-tts and yields base64 mulaw payloads.
-        edge-tts is fully async-native — no COM, no subprocess, no threading issues.
-        """
-        temp_mp3 = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
-        temp_wav = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.wav")
+        """Synthesizes text and yields 8-bit 8kHz mu-law base64 payloads in 20ms chunks."""
+        if not text or not text.strip():
+            return
 
         try:
-            # Step 1: Generate MP3 from edge-tts
-            communicate = edge_tts.Communicate(text, EDGE_TTS_VOICE)
-            await communicate.save(temp_mp3)
-            logger.info(f"[TTS Agent] edge-tts generated MP3: {temp_mp3}")
+            mp3_bytes = None
 
-            # Step 2: Convert MP3 → WAV using ffmpeg (available on most systems)
-            # We use audioop for the conversion pipeline, but first need PCM wav from mp3
-            # Use Python's subprocess to call ffmpeg for mp3->wav conversion
-            import subprocess, sys
-            result = subprocess.run(
-                ["ffmpeg", "-y", "-i", temp_mp3, "-ar", "8000", "-ac", "1", "-f", "wav", temp_wav],
-                capture_output=True
-            )
-
-            if result.returncode != 0 or not os.path.exists(temp_wav):
-                # Fallback: try via pydub if ffmpeg not available
-                logger.warning("[TTS Agent] ffmpeg not found or failed, trying pydub fallback...")
+            # Primary Engine: Fish Audio S2.1 Pro
+            if self.fish_audio and FISH_AUDIO_API_KEY:
                 try:
-                    from pydub import AudioSegment
-                    audio = AudioSegment.from_mp3(temp_mp3)
-                    audio = audio.set_frame_rate(8000).set_channels(1).set_sample_width(2)
-                    audio.export(temp_wav, format="wav")
-                except Exception as pydub_e:
-                    logger.error(f"[TTS Agent] pydub fallback also failed: {pydub_e}")
-                    return
+                    chunks = []
+                    async for chunk in self.fish_audio.stream_audio_chunks(text, format="mp3"):
+                        chunks.append(chunk)
+                    if chunks:
+                        mp3_bytes = b"".join(chunks)
+                except Exception as fa_err:
+                    logger.warning(f"[TTS Agent] Fish Audio TTS failed ({fa_err}). Falling back to Edge TTS.")
+                    mp3_bytes = None
 
-            # Step 3: Read WAV and convert to mu-law chunks
-            with wave.open(temp_wav, 'rb') as wf:
-                n_channels = wf.getnchannels()
-                samp_width = wf.getsampwidth()
-                frame_rate = wf.getframerate()
-                n_frames = wf.getnframes()
-                raw_frames = wf.readframes(n_frames)
+            # Fallback Engine: Edge TTS
+            if not mp3_bytes:
+                communicate = edge_tts.Communicate(text, EDGE_TTS_VOICE)
+                mp3_io = io.BytesIO()
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        mp3_io.write(chunk["data"])
+                mp3_bytes = mp3_io.getvalue()
 
-            # Ensure mono
-            if n_channels == 2:
-                raw_frames = audioop.tomono(raw_frames, samp_width, 0.5, 0.5)
+            if not mp3_bytes:
+                logger.error("[TTS Agent] Failed to generate audio bytes from TTS engines.")
+                return
 
-            # Ensure 16-bit
-            if samp_width != 2:
-                raw_frames = audioop.lin2lin(raw_frames, samp_width, 2)
+            # Convert MP3 bytes to PCM/WAV in memory via pydub
+            try:
+                from pydub import AudioSegment
+                segment = AudioSegment.from_file(io.BytesIO(mp3_bytes), format="mp3")
+                segment = segment.set_frame_rate(8000).set_channels(1).set_sample_width(2)
 
-            # Resample to 8000 Hz if needed
-            if frame_rate != 8000:
-                raw_frames, _ = audioop.ratecv(raw_frames, 2, 1, frame_rate, 8000, None)
+                wav_io = io.BytesIO()
+                segment.export(wav_io, format="wav")
+                wav_bytes = wav_io.getvalue()
 
-            # Convert to 8-bit mu-law
+                with wave.open(io.BytesIO(wav_bytes), 'rb') as wf:
+                    raw_frames = wf.readframes(wf.getnframes())
+
+            except Exception as cvt_err:
+                logger.error(f"[TTS Agent] Audio conversion error: {cvt_err}")
+                return
+
+            # Convert 16-bit linear PCM -> 8-bit u-law PCM
             mulaw_data = audioop.lin2ulaw(raw_frames, 2)
 
-            # Stream in 20ms chunks (160 bytes at 8kHz)
+            # Stream in 160-byte (20ms @ 8kHz) telephony chunks
             chunk_size = 160
-            for i in range(0, len(mulaw_data), chunk_size):
+            for idx, i in enumerate(range(0, len(mulaw_data), chunk_size)):
                 chunk = mulaw_data[i:i + chunk_size]
                 if len(chunk) < chunk_size:
                     chunk = chunk.ljust(chunk_size, b'\xff')
+                
                 yield encode_twilio_payload(chunk)
-                await asyncio.sleep(0.02)
+
+                # Populate client jitter buffer quickly for first 10 frames, then pace
+                if idx < 10:
+                    await asyncio.sleep(0.001)
+                else:
+                    await asyncio.sleep(0.015)
 
         except Exception as e:
             logger.error(f"[TTS Agent] Error in generate_audio_payloads: {e}", exc_info=True)
-        finally:
-            for f in [temp_mp3, temp_wav]:
-                if os.path.exists(f):
-                    try:
-                        os.remove(f)
-                    except Exception:
-                        pass

@@ -14,8 +14,9 @@ requests==2.32.3
 # ─────────────────────────────────────────────────────────────────────────────
 groq>=0.9.0
 
-# TTS — local pyttsx3 (no change; Groq does not offer TTS yet)
+# TTS — local pyttsx3 and edge-tts
 pyttsx3
+edge-tts
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DEPRECATED — Local AI (removed)

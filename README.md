@@ -20,8 +20,11 @@ AntiTalk is a full-stack, enterprise-grade B2B SaaS platform that allows HR depa
 ### 🧠 AntiGravity Python Voice AI Engine
 - **Real-Time Bi-Directional Streaming**: Integrates seamlessly with Twilio via FastAPI WebSockets (`/media-stream`), capturing 8kHz $\mu$-law chunks.
 - **Barge-In Capabilities**: Detects candidate speech and interrupts active text-to-speech rendering on-the-fly.
-- **Machine Learning Agents**: Modular architecture wrapping Speech-to-Text (`faster-whisper`), LLM dialog generation (`llama3` via Ollama), Text-to-Speech (`kokoro-onnx`), and post-call analytics (`RankerAgent`).
-- **Mock Mode for Local Testing**: Safely run and test the complete WebSocket pipeline locally without requiring a dedicated GPU or multi-gigabyte AI model downloads by setting `USE_MOCK_AGENTS=true`.
+- **High-Performance In-Memory Audio Processing**: Processes STT and TTS conversions in-memory via `io.BytesIO` buffers and native `audioop`/`pydub`, eliminating disk I/O latency and subprocess overhead.
+- **Multi-Provider AI Architecture**: Supports cloud models via Groq API (Whisper-large-v3-turbo, Llama-3.3-70b) and HuggingFace, with fallback to local Ollama.
+- **Enterprise TTS Engine**: Integrates Fish Audio S2.1 Pro and Edge TTS neural synthesis with 8kHz 8-bit mulaw telephony encoding.
+- **Lightweight Context Management**: Utilizes sliding-window context pruning to ensure token efficiency and ultra-fast LLM response times (<300ms).
+- **Mock Mode for Local Testing**: Safely run and test the complete WebSocket pipeline locally without requiring cloud API keys or GPU resources by setting `USE_MOCK_AGENTS=true`.
 
 ### 🔒 Security & Architecture
 - **JWT & Role-Based Access Control (RBAC)**: All sensitive routes and API endpoints are strictly protected by standard JWT verification and role middlewares (`HR` vs `ADMIN`).
@@ -34,7 +37,7 @@ AntiTalk is a full-stack, enterprise-grade B2B SaaS platform that allows HR depa
 
 - **Frontend**: React 18 (Vite), Tailwind CSS, Framer Motion, Lucide Icons, Axios.
 - **Backend (Express)**: Node.js, Express.js, Prisma ORM, Twilio SDK, JWT, bcrypt.
-- **Backend (AI Engine)**: Python 3, FastAPI, Uvicorn, WebSockets.
+- **Backend (AI Engine)**: Python 3, FastAPI, Uvicorn, WebSockets, Groq SDK, HuggingFace Hub, Fish Audio SDK, Edge TTS, Pydub.
 - **Database**: SQLite.
 
 ---
@@ -95,12 +98,13 @@ TWILIO_CHANNELS=1
 # Backend Webhook Destination
 EXPRESS_WEBHOOK_URL="http://localhost:5000/api/webhooks/call-completed"
 
-# AI Model Configuration
-STT_MODEL="tiny.en"
-TTS_MODEL="pyttsx3"
-BRAIN_MODEL="llama3"
-RANKER_MODEL="llama3"
-AI_SYSTEM_PROMPT="You are a professional AI Recruiter. Keep responses concise and evaluate candidates technically."
+# AI Provider Configuration
+LLM_PROVIDER="groq" # 'groq' or 'huggingface'
+GROQ_API_KEY="your_groq_api_key"
+GROQ_LLM_MODEL="llama-3.3-70b-versatile"
+GROQ_STT_MODEL="whisper-large-v3-turbo"
+
+FISH_AUDIO_API_KEY="your_fish_audio_api_key"
 ```
 
 ### 4. Initialize & Seed the Database
@@ -152,10 +156,7 @@ Double-click `run_all.bat` in the root folder.
   1. Set your valid Twilio `Account SID`, `Auth Token`, and `Phone Number` in `server/.env`.
   2. Launch ngrok using your reserved domain: `ngrok http --url=stonable-remiform-augustina.ngrok-free.dev 5000`.
   3. Ensure `EXPRESS_PUBLIC_URL` matches your https ngrok URL and `NGROK_PYTHON_URL` matches your wss ngrok URL in `server/.env`.
-  4. Ensure Ollama is running and Llama 3 model is pulled (if `USE_MOCK_AGENTS=false`):
-     ```bash
-     ollama run llama3
-     ```
+  4. Configure your Groq or HuggingFace API key in `python_service/.env`.
   5. Go to the dashboard, create a campaign, and add a candidate with your real phone number (`+1XXXYYYZZZZ`) to test!
 
 ---
@@ -174,7 +175,40 @@ Once you seed the database, you can log in using:
 
 ---
 
+## 🧪 Running Tests Independently (Standalone)
+
+You can run individual test suites and interactive test applications separately without needing to launch the entire full-stack application or ngrok tunnel:
+
+1. **Automated Python Test Suite (51 Unit & Integration Tests)**:
+   ```bash
+   cd python_service
+   python run_tests.py
+   ```
+2. **Groq Cloud LLM Integration Test (Live API)**:
+   ```bash
+   cd python_service
+   python test_groq.py
+   ```
+3. **Interactive Web Test UI (Browser Sandbox)**:
+   ```bash
+   cd agent_test
+   python -m uvicorn main:app --port 8005
+   ```
+   *Open [http://localhost:8005](http://localhost:8005) in your browser.*
+4. **Interactive CLI Agent Sandbox**:
+   ```bash
+   cd python_service
+   python run_agent_sandbox.py
+   ```
+5. **Standalone AI Agent CLI Tester**:
+   ```bash
+   cd python_service
+   python test_agents.py
+   ```
+
+---
+
 ## 🔗 How the AI Bridge Works
 When an HR user launches a campaign, Node.js tells Twilio to call the candidate. When the candidate picks up, Twilio asks the Node.js server for instructions via TwiML. Node.js instructs Twilio to open a WebSocket connection (`<Stream>`) to the **Python FastAPI Engine** via Ngrok. 
 
-The Python engine handles the interview in real-time, pulling campaign-specific configurations and using Agent 3 (LLM Brain) to evaluate user responses against key criteria. Once the Twilio call drops, Agent 4 (Ranker Analyst) calculates an AI Score, bundles a dossier JSON, and `POST`s it directly to the Express server Webhook to update the UI rankings instantly.
+The Python engine handles the interview in real-time using an in-memory streaming pipeline (STT $\rightarrow$ LLM Brain $\rightarrow$ TTS), evaluating user responses against key criteria. Once the Twilio call drops, Agent 4 (Ranker Analyst) calculates an AI Score, bundles a dossier JSON, and `POST`s it directly to the Express server Webhook to update the UI rankings instantly.
