@@ -29,6 +29,8 @@ async def ws_endpoint(websocket: WebSocket):
     await handle_interview_stream(websocket)
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "8001"))
+    port_env = os.getenv("AGENT_TEST_PORT") or os.getenv("PORT")
+    port = int(port_env) if port_env and port_env != "8000" else 8005
     print(f"Starting Agent Test Sandbox on http://localhost:{port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
+
