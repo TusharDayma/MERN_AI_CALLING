@@ -25,6 +25,7 @@ const CandidateRanking = lazy(() => import('./components/hr/CandidateRanking'));
 const CreateCampaignWizard = lazy(() => import('./components/hr/CreateCampaignWizard'));
 const JobRoles = lazy(() => import('./components/hr/JobRoles'));
 const CampaignManagement = lazy(() => import('./components/hr/CampaignManagement'));
+const CampaignDetails = lazy(() => import('./components/hr/CampaignDetails'));
 
 function PageLoader() {
   return <div className="flex min-h-screen items-center justify-center bg-background"><div className="h-10 w-10 animate-spin rounded-full border-4 border-primary-light border-t-primary" aria-label="Loading page" /></div>;
@@ -81,6 +82,7 @@ export default function App() {
           <Route element={<ProtectedRoute allowedRoles={['HR', 'hr']} />}>
             <Route path="/hr" element={<HrDashboard />} />
             <Route path="/hr/campaigns" element={<CampaignManagement />} />
+            <Route path="/hr/campaigns/:id" element={<CampaignDetails />} />
             <Route path="/hr/ranking" element={<CandidateRanking />} />
             <Route path="/hr/campaigns/create" element={<CreateCampaignWizard />} />
             <Route path="/hr/job-roles" element={<JobRoles />} />

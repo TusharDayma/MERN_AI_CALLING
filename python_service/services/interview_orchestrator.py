@@ -112,7 +112,7 @@ class AudioStreamManager:
         # Barge-in detection during AI speech
         if self.is_speaking:
             time_speaking = time.time() - self.speaking_start_time
-            if time_speaking > 1.2 and rms > 3000:
+            if time_speaking > 1.5 and rms > 4500:  # Increased thresholds to prevent false positives from echo
                 logger.info(f"[Orchestrator] Barge-in detected! RMS: {rms}")
                 await self.send_log(f"Barge-in detected! (Level {rms})")
                 self.cancel_tts()

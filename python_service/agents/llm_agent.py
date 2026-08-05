@@ -1,4 +1,4 @@
-from config import USE_MOCK_AGENTS, LLM_PROVIDER, GROQ_API_KEY, GROQ_LLM_MODEL, HF_API_KEY, HF_LLM_MODEL
+from config import USE_MOCK_AGENTS, GROQ_API_KEY, GROQ_LLM_MODEL
 import asyncio
 import logging
 import json
@@ -16,9 +16,8 @@ class LLMAgent:
     Handles channel-specific conversation flows, state tracking, and operational rules.
     """
     
-    # Lazy-loaded reusable client instances to eliminate instantiation overhead
+    # Lazy-loaded reusable Groq client instance
     _groq_client = None
-    _hf_client = None
 
     def __init__(
         self,
@@ -73,26 +72,17 @@ class LLMAgent:
         self.off_topic_flags = []
 
     def _get_client(self):
-        """Returns cached LLM client based on configured provider."""
+        """Returns cached Groq client."""
         if self.is_mock:
             return None
 
-        if LLM_PROVIDER == "huggingface":
-            if LLMAgent._hf_client is None and HF_API_KEY:
-                try:
-                    from huggingface_hub import AsyncInferenceClient
-                    LLMAgent._hf_client = AsyncInferenceClient(api_key=HF_API_KEY)
-                except Exception as e:
-                    logger.error(f"[LLM Agent] Failed to initialize AsyncInferenceClient: {e}")
-            return LLMAgent._hf_client
-        else:
-            if LLMAgent._groq_client is None and GROQ_API_KEY:
-                try:
-                    from groq import AsyncGroq
-                    LLMAgent._groq_client = AsyncGroq(api_key=GROQ_API_KEY)
-                except Exception as e:
-                    logger.error(f"[LLM Agent] Failed to initialize AsyncGroq: {e}")
-            return LLMAgent._groq_client
+        if LLMAgent._groq_client is None and GROQ_API_KEY:
+            try:
+                from groq import AsyncGroq
+                LLMAgent._groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+            except Exception as e:
+                logger.error(f"[LLM Agent] Failed to initialize AsyncGroq: {e}")
+        return LLMAgent._groq_client
 
     def get_initial_greeting(self) -> str:
         """Generates initial greeting depending on channel and schedule state."""
@@ -236,17 +226,40 @@ class LLMAgent:
             return reply
 
         # Build lean system prompt
-        system_instruction = (
-            f"You are an empathetic, professional AI HR Recruitment Assistant.\n"
-            f"Candidate: {self.candidate_name} | Role: {self.campaign_brief}\n"
-            f"Link: {self.scheduling_link} | Window: {self.hr_deadline_days} days | Mode: {self.current_channel}\n\n"
-            f"Output JSON ONLY:\n"
-            f"{{\n"
-            f'  "answer_status": "relevant" | "off_topic" | "insufficient" | "interested" | "not_interested",\n'
-            f'  "fluency_score": <1-5>,\n'
-            f'  "response": "<natural spoken text 1-3 sentences without markdown>"\n'
-            f"}}\n"
-        )
+        if self.current_channel == "Voice" and (self.is_scheduled or self.fallback_voice_stage == "screening"):
+            current_q = self.questions[self.current_question_idx] if self.current_question_idx < len(self.questions) else ""
+            next_q = self.questions[self.current_question_idx + 1] if self.current_question_idx + 1 < len(self.questions) else "We have finished all questions. Thank the candidate and end the interview."
+            
+            system_instruction = (
+                f"You are a strict, compact AI Voice Interviewer.\n"
+                f"Candidate: {self.candidate_name} | Role: {self.campaign_brief}\n"
+                f"Question candidate is answering: '{current_q}'\n"
+                f"Next Question to ask if relevant: '{next_q}'\n\n"
+                f"RULES & GUARDRAILS:\n"
+                f"1. ONLY speak in English.\n"
+                f"2. Evaluate their answer. If relevant, your response MUST ask the 'Next Question'.\n"
+                f"3. If off-topic or incorrect, repeat the 'Question candidate is answering' ONLY ONCE.\n"
+                f"4. If they ask a query outside the interview, say 'Please ask the HR team' and return to the question.\n"
+                f"5. Keep responses highly compact (1-2 short sentences). No conversational fluff. DO NOT stray from the domain.\n\n"
+                f"Output JSON ONLY:\n"
+                f"{{\n"
+                f'  "answer_status": "relevant" | "off_topic" | "insufficient",\n'
+                f'  "fluency_score": <1-5>,\n'
+                f'  "response": "<compact spoken text asking the appropriate question>"\n'
+                f"}}\n"
+            )
+        else:
+            system_instruction = (
+                f"You are an empathetic, professional AI HR Recruitment Assistant.\n"
+                f"Candidate: {self.candidate_name} | Role: {self.campaign_brief}\n"
+                f"Link: {self.scheduling_link} | Window: {self.hr_deadline_days} days | Mode: {self.current_channel}\n\n"
+                f"Output JSON ONLY:\n"
+                f"{{\n"
+                f'  "answer_status": "relevant" | "off_topic" | "insufficient" | "interested" | "not_interested",\n'
+                f'  "fluency_score": <1-5>,\n'
+                f'  "response": "<natural spoken text 1-3 sentences without markdown>"\n'
+                f"}}\n"
+            )
 
         # Context pruning: pass only recent turns + system instruction to keep tokens minimal
         recent_turns = [m for m in self.conversation_history[-6:] if m.get("role") in ("user", "assistant")]
@@ -256,22 +269,13 @@ class LLMAgent:
 
         if client is not None:
             try:
-                if LLM_PROVIDER == "huggingface":
-                    completion = await client.chat_completion(
-                        model=HF_LLM_MODEL,
-                        messages=messages,
-                        temperature=0.3,
-                        max_tokens=256,
-                        response_format={"type": "json_object"}
-                    )
-                else:
-                    completion = await client.chat.completions.create(
-                        model=GROQ_LLM_MODEL,
-                        messages=messages,
-                        response_format={"type": "json_object"},
-                        temperature=0.3,
-                        max_tokens=256
-                    )
+                completion = await client.chat.completions.create(
+                    model=GROQ_LLM_MODEL,
+                    messages=messages,
+                    response_format={"type": "json_object"},
+                    temperature=0.3,
+                    max_tokens=256
+                )
 
                 raw_content = completion.choices[0].message.content.strip()
                 if raw_content.startswith("```"):

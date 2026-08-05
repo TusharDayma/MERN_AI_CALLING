@@ -28,6 +28,23 @@ export const createJobRole = async (userId, { title, department, description }) 
   });
 };
 
+export const updateJobRole = async (roleId, { title, department, description }) => {
+  return await prisma.jobRole.update({
+    where: { id: roleId },
+    data: { title, department, description }
+  });
+};
+
+export const deleteJobRole = async (roleId) => {
+  const count = await prisma.campaign.count({ where: { job_role_id: roleId } });
+  if (count > 0) {
+    const error = new Error('Cannot delete job role because it is associated with one or more campaigns.');
+    error.statusCode = 400;
+    throw error;
+  }
+  return await prisma.jobRole.delete({ where: { id: roleId } });
+};
+
 export const createCampaign = async (hrId, { name, location, job_role_id }) => {
   return await prisma.campaign.create({
     data: {
@@ -111,6 +128,29 @@ export const launchCampaign = async (campaignId) => {
   }
 
   return { message: 'Campaign launched. Voice calls dispatched to candidates.' };
+};
+
+export const updateCampaignStatus = async (hrId, campaignId, status) => {
+  const campaign = await prisma.campaign.findFirst({
+    where: { id: campaignId, created_by_hr_id: hrId }
+  });
+
+  if (!campaign) {
+    const error = new Error('Campaign not found or access denied');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (status === 'ACTIVE' && campaign.status !== 'ACTIVE') {
+    return await launchCampaign(campaignId);
+  }
+
+  await prisma.campaign.update({
+    where: { id: campaignId },
+    data: { status }
+  });
+
+  return { message: `Campaign status updated to ${status}` };
 };
 
 export const deleteCampaign = async (hrId, campaignId) => {

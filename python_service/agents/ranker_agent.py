@@ -1,4 +1,4 @@
-from config import USE_MOCK_AGENTS, LLM_PROVIDER, GROQ_API_KEY, GROQ_RANKER_MODEL, HF_API_KEY, HF_RANKER_MODEL
+from config import USE_MOCK_AGENTS, GROQ_API_KEY, GROQ_RANKER_MODEL
 import logging
 import json
 
@@ -12,32 +12,22 @@ class RankerAgent:
     """
 
     _groq_client = None
-    _hf_client = None
 
     def __init__(self):
         self.is_mock = USE_MOCK_AGENTS
 
     def _get_client(self):
-        """Lazy-loads and caches API client instance."""
+        """Lazy-loads and caches Groq API client instance."""
         if self.is_mock:
             return None
 
-        if LLM_PROVIDER == "huggingface":
-            if RankerAgent._hf_client is None and HF_API_KEY:
-                try:
-                    from huggingface_hub import InferenceClient
-                    RankerAgent._hf_client = InferenceClient(api_key=HF_API_KEY)
-                except Exception as e:
-                    logger.error(f"[Ranker Agent] Failed to initialize InferenceClient: {e}")
-            return RankerAgent._hf_client
-        else:
-            if RankerAgent._groq_client is None and GROQ_API_KEY:
-                try:
-                    from groq import Groq
-                    RankerAgent._groq_client = Groq(api_key=GROQ_API_KEY)
-                except Exception as e:
-                    logger.error(f"[Ranker Agent] Failed to initialize Groq client: {e}")
-            return RankerAgent._groq_client
+        if RankerAgent._groq_client is None and GROQ_API_KEY:
+            try:
+                from groq import Groq
+                RankerAgent._groq_client = Groq(api_key=GROQ_API_KEY)
+            except Exception as e:
+                logger.error(f"[Ranker Agent] Failed to initialize Groq client: {e}")
+        return RankerAgent._groq_client
 
     def evaluate_interview(
         self,
@@ -117,28 +107,16 @@ class RankerAgent:
             prompt = f"Evaluate this interview transcript:{extra_context}\n\n{transcript_text}"
 
             try:
-                if LLM_PROVIDER == "huggingface":
-                    completion = client.chat_completion(
-                        model=HF_RANKER_MODEL,
-                        messages=[
-                            {"role": "system", "content": system_instruction},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.2,
-                        max_tokens=512,
-                        response_format={"type": "json_object"}
-                    )
-                else:
-                    completion = client.chat.completions.create(
-                        model=GROQ_RANKER_MODEL,
-                        messages=[
-                            {"role": "system", "content": system_instruction},
-                            {"role": "user", "content": prompt}
-                        ],
-                        response_format={"type": "json_object"},
-                        temperature=0.2,
-                        max_tokens=512
-                    )
+                completion = client.chat.completions.create(
+                    model=GROQ_RANKER_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.2,
+                    max_tokens=512
+                )
 
                 raw_content = completion.choices[0].message.content.strip()
                 if raw_content.startswith("```"):

@@ -8,8 +8,6 @@
  *   node run_telephony_api_tests.mjs
  */
 
-import fetch from 'node-fetch';
-
 const BASE = "http://localhost:5000";
 let passed = 0, failed = 0, errors = [];
 let HR_TOKEN = "";

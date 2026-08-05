@@ -14,15 +14,7 @@ requests==2.32.3
 # ─────────────────────────────────────────────────────────────────────────────
 groq>=0.9.0
 
-# TTS — local pyttsx3, edge-tts, and pydub audio conversion
-pyttsx3
+# TTS — edge-tts and pydub audio conversion
 edge-tts
 pydub
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DEPRECATED — Local AI (removed)
-# ─────────────────────────────────────────────────────────────────────────────
-# ollama==0.2.1              ← removed; replaced by groq SDK
-# faster-whisper==1.0.2      ← removed; replaced by groq STT API
-# soundfile==0.12.1          ← removed (was required by faster-whisper)
-# numpy==1.26.4              ← removed (was required by faster-whisper)

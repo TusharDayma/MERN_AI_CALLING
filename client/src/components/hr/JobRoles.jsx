@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../layout/DashboardLayout';
 import api from '../../services/api';
-import { Plus, Briefcase, X } from 'lucide-react';
+import { Plus, Briefcase, X, Edit2, Trash2 } from 'lucide-react';
 
 export default function JobRoles() {
   const [roles, setRoles] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRoleId, setEditingRoleId] = useState(null);
   const [formData, setFormData] = useState({ title: '', department: '', description: '' });
 
   useEffect(() => {
@@ -21,16 +22,44 @@ export default function JobRoles() {
     }
   };
 
-  const handleCreate = async (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/hr/job-roles', formData);
+      if (editingRoleId) {
+        await api.put(`/hr/job-roles/${editingRoleId}`, formData);
+      } else {
+        await api.post('/hr/job-roles', formData);
+      }
       setIsModalOpen(false);
+      setEditingRoleId(null);
       setFormData({ title: '', department: '', description: '' });
       fetchRoles();
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleDelete = async (id, title) => {
+    if (window.confirm(`Are you sure you want to delete the job role "${title}"?`)) {
+      try {
+        await api.delete(`/hr/job-roles/${id}`);
+        fetchRoles();
+      } catch (err) {
+        alert(err.response?.data?.error || 'Failed to delete job role');
+      }
+    }
+  };
+
+  const openCreateModal = () => {
+    setFormData({ title: '', department: '', description: '' });
+    setEditingRoleId(null);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (role) => {
+    setFormData({ title: role.title, department: role.department, description: role.description });
+    setEditingRoleId(role.id);
+    setIsModalOpen(true);
   };
 
   return (
@@ -42,7 +71,7 @@ export default function JobRoles() {
             <p className="text-sm text-text-secondary">Manage the positions you are hiring for.</p>
           </div>
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={openCreateModal}
             className="btn-primary btn-sm"
           >
             <Plus className="w-4 h-4" />
@@ -53,10 +82,18 @@ export default function JobRoles() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {roles.map(role => (
             <div key={role.id} className="card-hover relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-[0.03] text-primary group-hover:scale-110 transition-transform duration-300">
+              <div className="absolute top-0 right-0 p-4 opacity-[0.03] text-primary group-hover:scale-110 transition-transform duration-300 pointer-events-none">
                 <Briefcase className="w-24 h-24 -mt-4 -mr-4" />
               </div>
-              <h3 className="text-lg font-bold text-text-primary mb-1 relative z-10">{role.title}</h3>
+              <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                <button onClick={() => openEditModal(role)} className="p-1.5 bg-surface text-text-muted hover:text-primary hover:bg-surface-raised rounded-lg shadow-sm border border-border" title="Edit Role">
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => handleDelete(role.id, role.title)} className="p-1.5 bg-surface text-text-muted hover:text-danger hover:bg-danger-bg rounded-lg shadow-sm border border-border" title="Delete Role">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <h3 className="text-lg font-bold text-text-primary mb-1 relative z-10 pr-16">{role.title}</h3>
               <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-4 relative z-10">{role.department}</p>
               <p className="text-sm text-text-secondary line-clamp-3 relative z-10 leading-relaxed">{role.description}</p>
             </div>
@@ -78,8 +115,10 @@ export default function JobRoles() {
             <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-raised rounded-lg transition-colors">
               <X className="w-5 h-5" />
             </button>
-            <h2 className="text-xl font-bold text-text-primary mb-6">Add New Job Role</h2>
-            <form onSubmit={handleCreate} className="space-y-4">
+            <h2 className="text-xl font-bold text-text-primary mb-6">
+              {editingRoleId ? 'Edit Job Role' : 'Add New Job Role'}
+            </h2>
+            <form onSubmit={handleSave} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-text-secondary mb-1.5">Title</label>
                 <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-4 py-2 text-sm" placeholder="e.g. Senior Frontend Engineer" />

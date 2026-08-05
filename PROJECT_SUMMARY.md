@@ -1,4 +1,4 @@
-# AntiTalk Platform: Comprehensive Architecture & System Documentation
+﻿# AntiTalk Platform: Comprehensive Architecture & System Documentation
 
 ## Executive Summary & System Purpose
 
@@ -27,27 +27,27 @@ flowchart TB
         API["Express REST API (Port 5000)"]
         Prisma["Prisma ORM"]
         DB[(SQLite Database)]
-        TwilioSDK["Twilio REST SDK"]
+        ExotelSDK["Exotel REST SDK"]
     end
 
     subgraph Telephony["Telephony Network"]
-        Twilio["Twilio Voice Gateway"]
+        Exotel["Exotel Voice Gateway"]
     end
 
     subgraph AIEngine["Python AI Voice Engine"]
         FastAPI["FastAPI / WebSocket Server (Port 8000)"]
-        STT["Agent 1: STT (faster-whisper)"]
-        LLM["Agent 2: LLM Brain (ollama Llama 3)"]
-        TTS["Agent 3: TTS (kokoro-onnx)"]
-        Ranker["Agent 4: Analyst (ollama Llama 3)"]
+        STT["Agent 1: STT (Groq Whisper)"]
+        LLM["Agent 2: LLM Brain (Groq Llama 3)"]
+        TTS["Agent 3: TTS (Fish Audio S2.1)"]
+        Ranker["Agent 4: Analyst (Groq Llama 3)"]
     end
 
     HRUI -->|REST API + JWT| API
     AdminUI -->|REST API + JWT| API
     API <--> Prisma <--> DB
-    API -->|Outbound Call Trigger| TwilioSDK -->|SIP / Cellular Call| Twilio
-    Twilio <-->|TwiML Handshake| API
-    Twilio <-->|Bi-directional Audio WebSocket /media-stream| FastAPI
+    API -->|Outbound Call Trigger| ExotelSDK -->|SIP / Cellular Call| Exotel
+    Exotel <-->|Bi-directional Audio WebSocket /media-stream| API
+    API <-->|WebSocket Proxy| FastAPI
     FastAPI <--> STT
     FastAPI <--> LLM
     FastAPI <--> TTS
@@ -60,12 +60,12 @@ flowchart TB
 | Layer | Stack / Technologies | Key Responsibilities |
 | :--- | :--- | :--- |
 | **Frontend Application** | React 18, Vite, Tailwind CSS, Lucide Icons, Framer Motion | Provides dark-mode management UI for Admin & HR portals, candidate CSV uploading, live rankings, and interactive dossier popups |
-| **Core API Backend** | Node.js, Express.js, Prisma ORM, SQLite | Handles JWT authentication, Role-Based Access Control (RBAC), database persistence, Twilio REST API call triggers, and webhook endpoints |
+| **Core API Backend** | Node.js, Express.js, Prisma ORM, SQLite | Handles JWT authentication, Role-Based Access Control (RBAC), database persistence, Exotel REST API call triggers, and webhook endpoints |
 | **AI Engine Server** | Python 3.10+, FastAPI, Uvicorn, WebSockets | Streams bi-directional 8kHz $\mu$-law audio over WebSockets with Voice Activity Detection (VAD) and barge-in capability |
-| **Speech-to-Text (STT)** | `faster-whisper` | Real-time transcription of incoming candidate voice audio |
-| **LLM Brain & Analyst** | `ollama` (Llama 3 model) | Conversational interview state machine (evaluating criteria, handling re-asks) & post-call dossier analyst |
-| **Text-to-Speech (TTS)** | `kokoro-onnx` | Low-latency synthesis of AI response text back into telephony-compatible audio streams |
-| **Telephony Gateway** | Twilio Voice API & TwiML | Connects cellular/landline phone networks with server WebSockets via TwiML `<Stream>` directives |
+| **Speech-to-Text (STT)** | `Groq Whisper API` | Real-time transcription of incoming candidate voice audio |
+| **LLM Brain & Analyst** | `Groq Llama 3 API` | Conversational interview state machine (evaluating criteria, handling re-asks) & post-call dossier analyst |
+| **Text-to-Speech (TTS)** | `Fish Audio API` / `Edge TTS` | Low-latency synthesis of AI response text back into telephony-compatible audio streams |
+| **Telephony Gateway** | Exotel Voice API | Connects cellular/landline phone networks with server WebSockets via custom call flow |
 
 ---
 
@@ -151,33 +151,35 @@ Located in `python_service/agents`, four specialized AI agents collaborate durin
 
 ```
 python_service/agents/
-├── stt_agent.py              # Agent 1: Speech-to-Text (faster-whisper)
-├── llm_agent.py              # Agent 2: Conversation Manager & Brain (Ollama Llama 3)
-├── tts_agent.py              # Agent 3: Text-to-Speech (kokoro-onnx)
-└── ranker_agent.py           # Agent 4: Analyst & Dossier Generator (Ollama Llama 3)
+├── stt_agent.py              # Agent 1: Speech-to-Text (Groq Whisper)
+├── llm_agent.py              # Agent 2: Conversation Manager & Brain (Groq Llama 3)
+├── tts_agent.py              # Agent 3: Text-to-Speech (Fish Audio / Edge TTS)
+└── ranker_agent.py           # Agent 4: Analyst & Dossier Generator (Groq Llama 3)
 ```
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant C as Candidate (Phone)
-    participant T as Twilio Gateway
-    participant WS as FastAPI WebSocket (/media-stream)
+    participant T as Exotel Gateway
+    participant Node as Node.js Proxy
+    participant WS as FastAPI WebSocket
     participant STT as Agent 1: STT
     participant LLM as Agent 2: LLM Brain
     participant TTS as Agent 3: TTS
     participant Ranker as Agent 4: Analyst
-    participant Node as Node.js Server
 
     C->>T: Speaks into phone
-    T->>WS: Streams 8kHz mulaw audio chunks (every 20ms)
+    T->>Node: Streams 8kHz mulaw audio (WebSocket)
+    Node->>WS: Proxies connection to Python backend
     WS->>STT: Accumulates audio until silence detected (VAD)
     STT-->>WS: Returns transcript ("I have 4 years of React experience")
     WS->>LLM: Pass candidate answer + question criteria
     LLM-->>WS: Returns clean speech text ("That's great. What is the Virtual DOM?")
     WS->>TTS: Synthesize AI text
     TTS-->>WS: Audio chunks (8kHz mulaw)
-    WS->>T: Stream media payload
+    WS->>Node: Proxies audio back
+    Node->>T: Stream media payload
     T->>C: Plays AI audio to candidate
 
     Note over C,WS: Loop repeats until all campaign questions complete
@@ -193,8 +195,8 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    Step1["1. Campaign Creation\n(HR uploads CSV)"] --> Step2["2. Call Dispatch\n(Node triggers Twilio REST)"]
-    Step2 --> Step3["3. TwiML Handshake\n(Twilio receives WebSocket XML)"]
+    Step1["1. Campaign Creation\n(HR uploads CSV)"] --> Step2["2. Call Dispatch\n(Node triggers Exotel REST)"]
+    Step2 --> Step3["3. Media Stream\n(Exotel connects to WS)"]
     Step3 --> Step4["4. Interactive Interview\n(Bi-directional Voice Loop)"]
     Step4 --> Step5["5. Post-Call Analysis\n(Ranker Agent generates Dossier)"]
     Step5 --> Step6["6. Webhook Sync\n(Result posted to Node.js)"]
@@ -205,8 +207,8 @@ flowchart LR
 
 ## 📁 Core Directory & File Index
 
-- **Database & Backend API**: `server/server.js`, `server/prisma/schema.prisma`, `server/controllers/` (`hrController.js`, `twilioController.js`, `adminController.js`, `authController.js`)
-- **Python AI Engine**: `python_service/main.py`, `python_service/agents/` (`stt_agent.py`, `llm_agent.py`, `tts_agent.py`, `ranker_agent.py`), `python_service/test_agents.py`
+- **Database & Backend API**: `server/server.js`, `server/prisma/schema.prisma`, `server/controllers/` (`hrController.js`, `telephonyController.js`, `adminController.js`, `authController.js`)
+- **Python AI Engine**: `python_service/main.py`, `python_service/agents/` (`stt_agent.py`, `llm_agent.py`, `tts_agent.py`, `ranker_agent.py`)
 - **React Frontend**: `client/src/App.jsx`, `client/src/services/api.js`, `client/src/components/hr/HrDashboard.jsx`
 
 ---
@@ -225,7 +227,7 @@ flowchart LR
    ```bash
    cd python_service && .\venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
    ```
-4. **Standalone CLI AI Agent Test**:
+4. **Standalone Web Sandbox Test UI**:
    ```bash
-   cd python_service && .\venv\Scripts\python.exe test_agents.py
+   cd agent_test && .\..\python_service\venv\Scripts\python.exe -m uvicorn main:app --port 8005 --reload
    ```

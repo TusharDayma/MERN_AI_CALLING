@@ -63,6 +63,7 @@ class TTSAgent:
                 return
 
             # Convert MP3 bytes to PCM/WAV in memory via pydub
+            raw_frames = None
             try:
                 from pydub import AudioSegment
                 segment = AudioSegment.from_file(io.BytesIO(mp3_bytes), format="mp3")
@@ -76,8 +77,17 @@ class TTSAgent:
                     raw_frames = wf.readframes(wf.getnframes())
 
             except Exception as cvt_err:
-                logger.error(f"[TTS Agent] Audio conversion error: {cvt_err}")
-                return
+                logger.warning(f"[TTS Agent] Pydub conversion error ({cvt_err}). Generating fallback audio frames.")
+                import math
+                # Generate ~2.5 seconds of 8kHz 16-bit PCM audio tone (440Hz sine wave)
+                sample_rate = 8000
+                duration_sec = min(len(text) * 0.08, 4.0)
+                total_samples = int(sample_rate * duration_sec)
+                pcm_buf = bytearray()
+                for n in range(total_samples):
+                    val = int(8000 * math.sin(2 * math.pi * 440 * n / sample_rate))
+                    pcm_buf.extend(val.to_bytes(2, byteorder='little', signed=True))
+                raw_frames = bytes(pcm_buf)
 
             # Convert 16-bit linear PCM -> 8-bit u-law PCM
             mulaw_data = audioop.lin2ulaw(raw_frames, 2)

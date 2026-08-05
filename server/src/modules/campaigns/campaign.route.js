@@ -12,10 +12,13 @@ router.use(requireRole('HR'));
 router.get('/metrics', campaignController.getHRMetrics);
 router.get('/job-roles', campaignController.getJobRoles);
 router.post('/job-roles', campaignController.createJobRole);
+router.put('/job-roles/:id', campaignController.updateJobRole);
+router.delete('/job-roles/:id', campaignController.deleteJobRole);
 
 router.get('/', campaignController.getCampaigns);
 router.post('/', campaignController.createCampaign);
 router.get('/:id', campaignController.getCampaignDetails);
+router.patch('/:id/status', campaignController.updateCampaignStatus);
 router.post('/:id/questions', campaignController.addQuestions);
 router.post('/:id/launch', campaignController.launchCampaign);
 router.post('/:id/candidates', importCandidates);

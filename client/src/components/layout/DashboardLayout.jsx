@@ -138,9 +138,9 @@ export default function DashboardLayout({ role, children }) {
               <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
               System Operational
             </div>
-            <div className="h-9 w-9 rounded-full bg-primary-light border border-primary/20 flex items-center justify-center text-primary shadow-sm">
+            <Link to="/profile" className="h-9 w-9 rounded-full bg-primary-light border border-primary/20 flex items-center justify-center text-primary shadow-sm hover:bg-primary hover:text-white transition-colors cursor-pointer" title="Profile Settings">
               <User className="h-4.5 w-4.5" />
-            </div>
+            </Link>
           </div>
         </header>
 

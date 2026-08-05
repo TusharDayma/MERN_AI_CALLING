@@ -13,13 +13,13 @@
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "antitalk-platform": "file:..",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "http-proxy-middleware": "^4.2.0",
     "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.23.1",
     "node-fetch": "^3.3.2",
     "twilio": "^6.0.2"
   },

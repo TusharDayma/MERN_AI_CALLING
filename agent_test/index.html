@@ -1,366 +1,704 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice AI Agent Tester (Full Pipeline)</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            color: #f1f5f9;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 2rem;
-        }
-        .card {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            backdrop-filter: blur(16px);
-            padding: 2.5rem 2rem;
-            border-radius: 1.25rem;
-            max-width: 600px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.4);
-        }
-        h2 { font-size: 1.6rem; margin-bottom: 0.5rem; }
-        p.sub { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem; line-height: 1.6; }
-        
-        .setup {
-            text-align: left;
-            background: rgba(0,0,0,0.2);
-            padding: 1.5rem;
-            border-radius: 0.75rem;
-            margin-bottom: 2rem;
-            border: 1px solid rgba(255,255,255,0.05);
-        }
-        .setup label { display: block; margin-bottom: 0.5rem; color: #94a3b8; font-size: 0.9rem; }
-        .setup textarea {
-            width: 100%;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: rgba(0,0,0,0.3);
-            color: #f1f5f9;
-            font-family: inherit;
-            margin-bottom: 1rem;
-            min-height: 100px;
-            resize: vertical;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AntiTalk AI · Agent Sandbox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        .orb {
-            width: 90px; height: 90px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #3b82f6, #6366f1);
-            margin: 0 auto 1.5rem;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 2rem;
-            box-shadow: 0 0 0 0 rgba(99,102,241,0.5);
-            transition: transform 0.3s;
-        }
-        .orb.listening { animation: orbPulse 1.5s infinite; }
-        .orb.speaking { animation: orbBounce 0.4s infinite alternate; box-shadow: 0 0 30px rgba(99,102,241,0.8); }
-        
-        @keyframes orbPulse {
-            0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
-            70% { box-shadow: 0 0 0 20px rgba(99,102,241,0); }
-            100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
-        }
-        @keyframes orbBounce {
-            from { transform: scale(1); }
-            to { transform: scale(1.1); }
-        }
+    :root {
+      --bg:      #080c18;
+      --surface: rgba(255,255,255,0.04);
+      --border:  rgba(255,255,255,0.09);
+      --text:    #e2e8f0;
+      --muted:   #64748b;
+      --indigo:  #6366f1;
+      --indigo2: #4f46e5;
+      --green:   #10b981;
+      --blue:    #3b82f6;
+      --red:     #ef4444;
+      --yellow:  #f59e0b;
+    }
 
-        .btn {
-            width: 100%; padding: 0.85rem 1.5rem;
-            border: none; border-radius: 0.65rem;
-            font-weight: 600; font-size: 1rem;
-            cursor: pointer; margin-top: 0.75rem;
-            transition: all 0.2s; letter-spacing: 0.01em;
-        }
-        .btn-primary { background: #4f46e5; color: white; }
-        .btn-primary:hover { background: #4338ca; transform: translateY(-1px); }
-        .btn-danger { background: #dc2626; color: white; }
-        .btn-danger:hover { background: #b91c1c; }
-        .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 0.35rem 0.85rem;
-            border-radius: 9999px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            margin-top: 1.25rem;
-            background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.12);
-            color: #94a3b8;
-        }
-        .status-badge.connected { background: rgba(16,185,129,0.15); border-color: #10b981; color: #6ee7b7; }
-        .status-badge.error { background: rgba(239,68,68,0.15); border-color: #ef4444; color: #fca5a5; }
-        
-        #log {
-            margin-top: 1.25rem;
-            background: rgba(0,0,0,0.3);
-            border-radius: 0.65rem;
-            padding: 0.75rem 1rem;
-            text-align: left;
-            max-height: 160px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 0.75rem;
-            color: #94a3b8;
-            line-height: 1.7;
-        }
-        #log .ok { color: #6ee7b7; }
-        #log .err { color: #fca5a5; }
-        #log .info { color: #93c5fd; }
-    </style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,.18) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 80% 80%,  rgba(16,185,129,.08) 0%, transparent 60%);
+    }
+
+    /* ── CARD ────────────────────────────────────────────── */
+    .card {
+      background: rgba(10,14,26,0.85);
+      border: 1px solid var(--border);
+      border-radius: 1.5rem;
+      width: 100%;
+      max-width: 620px;
+      box-shadow: 0 32px 80px rgba(0,0,0,.55);
+      backdrop-filter: blur(24px);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 1.75rem 2rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: .85rem;
+    }
+    .logo {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg,#6366f1,#4f46e5);
+      border-radius: .75rem;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      box-shadow: 0 4px 14px rgba(99,102,241,.35);
+    }
+    .card-header h1 { font-size: 1.15rem; font-weight: 700; }
+    .card-header p  { font-size: .78rem; color: var(--muted); margin-top: .15rem; }
+
+    .card-body { padding: 1.75rem 2rem; }
+
+    /* ── STEPS ───────────────────────────────────────────── */
+    .step { display: none; }
+    .step.active { display: block; }
+
+    /* ── STEP INDICATOR ─────────────────────────────────── */
+    .step-pills {
+      display: flex; gap: .5rem; margin-bottom: 1.5rem;
+    }
+    .pill {
+      flex: 1; height: 3px; border-radius: 99px;
+      background: var(--border);
+      transition: background .3s;
+    }
+    .pill.done { background: var(--indigo); }
+    .pill.active { background: var(--indigo); opacity: .5; }
+
+    /* ── FORM ELEMENTS ───────────────────────────────────── */
+    label {
+      display: block;
+      font-size: .8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: .4rem;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+
+    input[type="text"], textarea, select {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: .6rem;
+      color: var(--text);
+      font-family: inherit;
+      font-size: .9rem;
+      padding: .7rem .9rem;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input[type="text"]:focus, textarea:focus {
+      border-color: rgba(99,102,241,.6);
+      box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+    }
+    textarea { resize: vertical; min-height: 130px; line-height: 1.6; }
+
+    .field { margin-bottom: 1.1rem; }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+    /* question builder */
+    .q-list { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .6rem; }
+    .q-item {
+      display: flex; align-items: center; gap: .5rem;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid var(--border);
+      border-radius: .6rem;
+      padding: .55rem .75rem;
+    }
+    .q-item span {
+      flex: 1; font-size: .875rem; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .q-num {
+      width: 22px; height: 22px;
+      background: rgba(99,102,241,.2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .7rem; font-weight: 700; color: #a5b4fc;
+      flex-shrink: 0;
+    }
+    .q-del {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 1rem; line-height: 1;
+      transition: color .2s;
+    }
+    .q-del:hover { color: var(--red); }
+
+    .add-q-row {
+      display: flex; gap: .5rem;
+    }
+    .add-q-row input { flex: 1; }
+    .btn-add {
+      padding: .7rem 1rem;
+      background: rgba(99,102,241,.15);
+      border: 1px solid rgba(99,102,241,.3);
+      border-radius: .6rem;
+      color: #a5b4fc;
+      font-size: .85rem; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+      transition: background .2s;
+    }
+    .btn-add:hover { background: rgba(99,102,241,.28); }
+
+    /* ── BUTTONS ─────────────────────────────────────────── */
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: .5rem;
+      width: 100%; padding: .85rem;
+      border: none; border-radius: .75rem;
+      font-family: inherit; font-size: .95rem; font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--indigo), var(--indigo2));
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(99,102,241,.35);
+    }
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(99,102,241,.5);
+    }
+    .btn-danger {
+      background: linear-gradient(135deg,#ef4444,#dc2626);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(239,68,68,.3);
+    }
+    .btn-danger:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn-ghost {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,.07); color: var(--text); }
+
+    /* ── ORB ─────────────────────────────────────────────── */
+    .orb-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      margin: 1rem 0 1.5rem;
+    }
+    .orb {
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem;
+      position: relative;
+      transition: all .35s;
+    }
+    .orb.idle {
+      background: radial-gradient(circle, #334155, #1e293b);
+      box-shadow: 0 0 24px rgba(0,0,0,.4);
+    }
+    .orb.speaking {
+      background: radial-gradient(circle, #059669, #047857);
+      box-shadow: 0 0 0 0 rgba(16,185,129,.6);
+      animation: orbSpeak .7s infinite alternate ease-in-out;
+    }
+    .orb.listening {
+      background: radial-gradient(circle, #2563eb, #1d4ed8);
+      box-shadow: 0 0 0 0 rgba(59,130,246,.6);
+      animation: orbListen 1.2s infinite ease-in-out;
+    }
+    .orb.processing {
+      background: radial-gradient(circle, #d97706, #b45309);
+      animation: orbSpin 1.2s linear infinite;
+    }
+    @keyframes orbSpeak  { from { transform: scale(1);    box-shadow: 0 0 0 0 rgba(16,185,129,.5); }
+                           to   { transform: scale(1.1);  box-shadow: 0 0 0 20px rgba(16,185,129,0); } }
+    @keyframes orbListen { 0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(59,130,246,.5); }
+                           50%  { transform: scale(1.06); box-shadow: 0 0 0 18px rgba(59,130,246,0); }
+                           100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(59,130,246,.5); } }
+    @keyframes orbSpin   { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
+
+    .orb-label {
+      margin-top: .75rem;
+      font-size: .8rem; color: var(--muted);
+      font-weight: 500; letter-spacing: .04em;
+    }
+
+    /* ── STATUS BADGE ────────────────────────────────────── */
+    .badge {
+      display: inline-flex; align-items: center; gap: .4rem;
+      padding: .35rem .85rem;
+      border-radius: 99px; font-size: .78rem; font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .badge .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--muted);
+    }
+    .badge.connected .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .badge.connected { color: #6ee7b7; border-color: rgba(16,185,129,.3); background: rgba(16,185,129,.08); }
+    .badge.error .dot { background: var(--red); }
+    .badge.error { color: #fca5a5; border-color: rgba(239,68,68,.3); background: rgba(239,68,68,.08); }
+    .badge.listening { color: #93c5fd; border-color: rgba(59,130,246,.3); background: rgba(59,130,246,.08); }
+    .badge.listening .dot { background: var(--blue); box-shadow: 0 0 6px var(--blue); animation: blink 1s infinite; }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+    /* ── TRANSCRIPT LOG ──────────────────────────────────── */
+    .log-wrap { margin-top: .75rem; }
+    .log-wrap label { margin-bottom: .5rem; }
+    .log {
+      background: rgba(0,0,0,.3);
+      border: 1px solid var(--border);
+      border-radius: .75rem;
+      padding: .75rem 1rem;
+      height: 180px;
+      overflow-y: auto;
+      font-size: .78rem;
+      line-height: 1.7;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      scroll-behavior: smooth;
+    }
+    .log-entry { display: flex; gap: .5rem; align-items: flex-start; margin-bottom: .1rem; }
+    .log-time  { color: #334155; flex-shrink: 0; font-size: .72rem; padding-top: .05rem; }
+    .log-entry.info  .log-msg { color: #94a3b8; }
+    .log-entry.ok    .log-msg { color: #6ee7b7; }
+    .log-entry.user  .log-msg { color: #93c5fd; }
+    .log-entry.ai    .log-msg { color: #c084fc; }
+    .log-entry.err   .log-msg { color: #fca5a5; }
+    .log-entry.warn  .log-msg { color: #fcd34d; }
+
+    /* ── DIVIDER ─────────────────────────────────────────── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+
+    /* ── INFO NOTE ───────────────────────────────────────── */
+    .note {
+      background: rgba(99,102,241,.07);
+      border: 1px solid rgba(99,102,241,.2);
+      border-radius: .6rem;
+      padding: .65rem .85rem;
+      font-size: .78rem;
+      color: #a5b4fc;
+      line-height: 1.5;
+      margin-bottom: 1rem;
+    }
+
+    /* ── SCORE PANEL ─────────────────────────────────────── */
+    .score-panel {
+      text-align: center; padding: .5rem 0 .25rem;
+    }
+    .score-circle {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: conic-gradient(var(--indigo) calc(var(--pct) * 1%), #1e293b 0%);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto .75rem;
+      position: relative;
+    }
+    .score-circle::before {
+      content: '';
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      background: #0a0e1a;
+    }
+    .score-num {
+      position: relative; z-index: 1;
+      font-size: 1.25rem; font-weight: 700;
+    }
+    .score-label { font-size: .75rem; color: var(--muted); margin-bottom: 1rem; }
+  </style>
 </head>
 <body>
-    <div class="card">
-        <div id="orb" class="orb">🤖</div>
-        <h2>Voice AI Tester (Full Pipeline)</h2>
-        <p class="sub">Test STT -> LLM -> TTS -> Ranker directly from your browser.</p>
-        
-        <div class="setup" id="setupDiv">
-            <label>Configure Questions (one per line):</label>
-            <textarea id="questionsInput">Tell me about yourself and your work experience.
-Can you describe a challenging problem you faced recently?
-Why are you interested in this role?</textarea>
-            <button class="btn btn-primary" id="startBtn">🎤 Connect & Speak</button>
-        </div>
+<div class="card">
 
-        <button class="btn btn-danger" id="stopBtn" style="display:none">⛔ Stop Call</button>
-        <div id="statusBadge" class="status-badge">● Disconnected</div>
-        <div id="log"></div>
+  <!-- Header -->
+  <div class="card-header">
+    <div class="logo">🤖</div>
+    <div>
+      <h1>AntiTalk AI · Agent Sandbox</h1>
+      <p>Voice interview simulator — STT → LLM → TTS pipeline</p>
+    </div>
+  </div>
+
+  <div class="card-body">
+
+    <!-- Step pills -->
+    <div class="step-pills" id="pills">
+      <div class="pill active" id="pill-0"></div>
+      <div class="pill" id="pill-1"></div>
     </div>
 
+    <!-- ══ STEP 1: Configure ══════════════════════════════ -->
+    <div class="step active" id="step-0">
+
+      <div class="field row">
+        <div>
+          <label>Your Name</label>
+          <input type="text" id="nameInput" placeholder="e.g. Ravi Sharma" />
+        </div>
+        <div>
+          <label>Your Role</label>
+          <input type="text" id="roleInput" placeholder="e.g. Full-Stack Engineer" />
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <label style="margin-bottom:.65rem;">Screening Questions <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:.78rem;">(add at least 1)</span></label>
+      <div class="q-list" id="qList"></div>
+
+      <div class="add-q-row">
+        <input type="text" id="qInput" placeholder="Type a screening question and press Add…" maxlength="200" />
+        <button class="btn-add" id="addQBtn">＋ Add</button>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="note">
+        🎤 Make sure your browser has <strong>microphone access</strong> enabled.<br/>
+        The AI will greet you, then ask each question after you respond.
+      </div>
+
+      <button class="btn btn-primary" id="startBtn" disabled>
+        🎤 Start Voice Interview
+      </button>
+    </div>
+
+    <!-- ══ STEP 2: Live Call ══════════════════════════════ -->
+    <div class="step" id="step-1">
+
+      <div class="orb-wrap">
+        <div class="orb idle" id="orb">🤖</div>
+        <span class="orb-label" id="orbLabel">Initializing…</span>
+      </div>
+
+      <div style="display:flex;justify-content:center;margin-bottom:1rem;">
+        <div class="badge" id="badge"><span class="dot"></span> Connecting…</div>
+      </div>
+
+      <div class="log-wrap">
+        <label>Live Transcript</label>
+        <div class="log" id="log"></div>
+      </div>
+
+      <hr class="divider" />
+
+      <button class="btn btn-danger" id="stopBtn">⏹ End Interview</button>
+    </div>
+
+  </div><!-- /card-body -->
+</div><!-- /card -->
+
 <script>
-const startBtn = document.getElementById('startBtn');
-const stopBtn  = document.getElementById('stopBtn');
-const badge    = document.getElementById('statusBadge');
-const orb      = document.getElementById('orb');
-const logEl    = document.getElementById('log');
-const setupDiv = document.getElementById('setupDiv');
-
-let ws = null;
-let micCtx = null;
-let spkCtx = null;
-let mediaStream = null;
-let processor = null;
+// ── State ────────────────────────────────────────────────────────────────────
+let questions    = [];
+let ws           = null;
+let micCtx       = null;
+let spkCtx       = null;
+let mediaStream  = null;
+let processor    = null;
 let nextPlayTime = 0;
+let currentStep  = 0;
 
-function addLog(msg, type='info') {
-    const d = document.createElement('div');
-    d.className = type;
-    d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-    logEl.appendChild(d);
-    logEl.scrollTop = logEl.scrollHeight;
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+const nameInput = document.getElementById('nameInput');
+const roleInput = document.getElementById('roleInput');
+const qInput    = document.getElementById('qInput');
+const addQBtn   = document.getElementById('addQBtn');
+const qList     = document.getElementById('qList');
+const startBtn  = document.getElementById('startBtn');
+const stopBtn   = document.getElementById('stopBtn');
+const orb       = document.getElementById('orb');
+const orbLabel  = document.getElementById('orbLabel');
+const badge     = document.getElementById('badge');
+const log       = document.getElementById('log');
+
+// ── Step Navigation ──────────────────────────────────────────────────────────
+function goStep(n) {
+  document.getElementById(`step-${currentStep}`).classList.remove('active');
+  document.getElementById(`pill-${currentStep}`).classList.remove('active');
+  document.getElementById(`pill-${currentStep}`).classList.add('done');
+  currentStep = n;
+  document.getElementById(`step-${n}`).classList.add('active');
+  document.getElementById(`pill-${n}`).classList.add('active');
 }
 
-// ------ Mu-Law encode (Float32 → mu-law byte) ------
-function float32ToMulaw(sample) {
-    const MAX = 32635;
-    const BIAS = 0x84;
-    let pcm = Math.round(Math.max(-1, Math.min(1, sample)) * 32767);
-    let sign = (pcm < 0) ? 0x80 : 0;
-    if (pcm < 0) pcm = -pcm;
-    if (pcm > MAX) pcm = MAX;
-    pcm += BIAS;
-    let exp = 7;
-    for (let expMask = 0x4000; (pcm & expMask) === 0 && exp > 0; exp--, expMask >>= 1) {}
-    let mantissa = (pcm >> (exp + 3)) & 0x0F;
-    return ~(sign | (exp << 4) | mantissa) & 0xFF;
+// ── Question Builder ─────────────────────────────────────────────────────────
+function renderQuestions() {
+  qList.innerHTML = '';
+  questions.forEach((q, i) => {
+    const item = document.createElement('div');
+    item.className = 'q-item';
+    item.innerHTML = `
+      <span class="q-num">${i+1}</span>
+      <span title="${q}">${q}</span>
+      <button class="q-del" data-i="${i}" title="Remove">✕</button>`;
+    qList.appendChild(item);
+  });
+  startBtn.disabled = questions.length === 0;
 }
 
-// ------ Mu-Law decode (mu-law byte → Float32) ------
-function mulawToFloat32(mulaw) {
-    mulaw = ~mulaw & 0xFF;
-    let sign  = mulaw & 0x80;
-    let exp   = (mulaw >> 4) & 0x07;
-    let mant  = mulaw & 0x0F;
-    let sample = ((mant << 3) + 132) << exp;
-    sample -= 132;
-    let pcm = sign ? -sample : sample;
-    return pcm / 32768.0;
+function addQuestion() {
+  const val = qInput.value.trim();
+  if (!val) return;
+  questions.push(val);
+  qInput.value = '';
+  renderQuestions();
+  qInput.focus();
 }
 
-function toBase64(uint8) {
-    let binary = '';
-    for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
-    return btoa(binary);
+addQBtn.addEventListener('click', addQuestion);
+qInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addQuestion(); } });
+qList.addEventListener('click', e => {
+  if (e.target.classList.contains('q-del')) {
+    questions.splice(+e.target.dataset.i, 1);
+    renderQuestions();
+  }
+});
+
+// ── Log ──────────────────────────────────────────────────────────────────────
+function addLog(msg, type = 'info') {
+  const now = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  const row = document.createElement('div');
+  row.className = `log-entry ${type}`;
+  row.innerHTML = `<span class="log-time">${now}</span><span class="log-msg">${msg}</span>`;
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
 }
 
+// ── Orb helpers ───────────────────────────────────────────────────────────────
+function setOrb(state, label, emoji) {
+  orb.className = `orb ${state}`;
+  orb.textContent = emoji || '🤖';
+  orbLabel.textContent = label;
+}
+
+function setBadge(type, text) {
+  badge.className = `badge ${type}`;
+  badge.innerHTML = `<span class="dot"></span> ${text}`;
+}
+
+// ── μ-law encode / decode ────────────────────────────────────────────────────
+function float32ToMulaw(s) {
+  const MAX = 32635, BIAS = 0x84;
+  let pcm = Math.round(Math.max(-1,Math.min(1,s)) * 32767);
+  let sign = pcm < 0 ? 0x80 : 0;
+  if (pcm < 0) pcm = -pcm;
+  if (pcm > MAX) pcm = MAX;
+  pcm += BIAS;
+  let exp = 7;
+  for (let m = 0x4000; (pcm & m) === 0 && exp > 0; exp--, m >>= 1) {}
+  return ~(sign | (exp << 4) | ((pcm >> (exp+3)) & 0x0F)) & 0xFF;
+}
+
+function mulawToFloat32(mu) {
+  mu = ~mu & 0xFF;
+  const sign = mu & 0x80, exp = (mu >> 4) & 0x07, mant = mu & 0x0F;
+  let sample = ((mant << 3) + 132) << exp;
+  sample -= 132;
+  return (sign ? -sample : sample) / 32768.0;
+}
+
+function toBase64(u8) {
+  let s = '';
+  for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+  return btoa(s);
+}
 function fromBase64(b64) {
-    const bin = atob(b64);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    return arr;
+  const bin = atob(b64), a = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return a;
 }
 
-// ------ Resample Float32 array from srcRate to dstRate ------
 function resample(data, srcRate, dstRate) {
-    if (srcRate === dstRate) return data;
-    const ratio = srcRate / dstRate;
-    const outLen = Math.round(data.length / ratio);
-    const out = new Float32Array(outLen);
-    for (let i = 0; i < outLen; i++) {
-        const pos = i * ratio;
-        const idx = Math.floor(pos);
-        const frac = pos - idx;
-        const a = data[idx] || 0;
-        const b = data[idx + 1] || 0;
-        out[i] = a + frac * (b - a);
-    }
-    return out;
+  if (srcRate === dstRate) return data;
+  const ratio = srcRate / dstRate;
+  const out = new Float32Array(Math.round(data.length / ratio));
+  for (let i = 0; i < out.length; i++) {
+    const pos = i * ratio, idx = Math.floor(pos), frac = pos - idx;
+    out[i] = (data[idx] || 0) + frac * ((data[idx+1] || 0) - (data[idx] || 0));
+  }
+  return out;
 }
 
-async function startCall() {
-    try {
-        const rawQs = document.getElementById("questionsInput").value.split('\n').map(q => q.trim()).filter(q => q);
-        if(rawQs.length === 0) return alert("Please enter at least one question.");
-        
-        // Format questions array for backend
-        const formattedQuestions = rawQs.map(q => ({ text: q }));
-        
-        startBtn.disabled = true;
+// ── Start Call ────────────────────────────────────────────────────────────────
+startBtn.addEventListener('click', async () => {
+  if (questions.length === 0) { addLog('Please add at least one question.', 'err'); return; }
 
-        // CREATE CONTEXTS SYNCHRONOUSLY IN CLICK HANDLER
-        micCtx = new (window.AudioContext || window.webkitAudioContext)();
-        spkCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (spkCtx.state === 'suspended') spkCtx.resume();
-        if (micCtx.state === 'suspended') micCtx.resume();
+  const candidateName = nameInput.value.trim() || 'Candidate';
+  const role          = roleInput.value.trim() || 'Software Engineer';
 
-        badge.className = 'status-badge';
-        badge.textContent = '● Requesting microphone…';
-        addLog('Requesting microphone access…');
+  goStep(1);
+  setOrb('processing', 'Requesting microphone…', '🎙️');
+  setBadge('', 'Requesting microphone…');
+  addLog(`Starting interview for ${candidateName} · ${role}`, 'info');
+  addLog(`${questions.length} question(s) queued`, 'info');
 
-        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  try {
+    const ACtx = window.AudioContext || window.webkitAudioContext;
+    micCtx = new ACtx();
+    spkCtx = new ACtx();
+    if (micCtx.state === 'suspended') await micCtx.resume();
+    if (spkCtx.state === 'suspended') await spkCtx.resume();
 
-        badge.textContent = '● Connecting…';
-        addLog('Connecting to Main AI engine (Port 8000)…');
-        setupDiv.style.display = 'none';
+    mediaStream = await navigator.mediaDevices.getUserMedia({ 
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
+      video: false 
+    });
+    addLog('Microphone access granted ✓', 'ok');
 
-        const qsStr = JSON.stringify(formattedQuestions);
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host || 'localhost:8000';
-        const wsUrl = `${protocol}//${host}/media-stream?candidateId=CUSTOM_TEST&is_scheduled=true&candidateName=Test%20Candidate&questionsJson=${encodeURIComponent(qsStr)}`;
-        ws = new WebSocket(wsUrl);
+    setOrb('processing', 'Connecting to AI engine…', '⏳');
+    setBadge('', 'Connecting…');
 
-        ws.onopen = () => {
-            badge.className = 'status-badge connected';
-            badge.textContent = '● Connected — AI is greeting you…';
-            orb.className = 'orb speaking';
-            stopBtn.style.display = 'block';
-            addLog('WebSocket connected to full pipeline!', 'ok');
+    const formattedQs = questions.map(q => ({ text: q }));
+    const qsStr       = encodeURIComponent(JSON.stringify(formattedQs));
+    const nameStr     = encodeURIComponent(candidateName);
+    const proto       = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host        = location.host || 'localhost:8005';
+    const url         = `${proto}//${host}/media-stream?candidateId=SANDBOX_TEST&is_scheduled=true&candidateName=${nameStr}&questionsJson=${qsStr}`;
 
-            // Send start event
-            ws.send(JSON.stringify({
-                event: "start",
-                streamSid: "custom_test_stream_001",
-                start: { customParameters: { candidateId: "CUSTOM_TEST" } }
-            }));
-
-            // Mic capture
-            const source = micCtx.createMediaStreamSource(mediaStream);
-            processor = micCtx.createScriptProcessor(2048, 1, 1);
-            source.connect(processor);
-            processor.connect(micCtx.destination);
-            const nativeRate = micCtx.sampleRate;
-
-            processor.onaudioprocess = (e) => {
-                if (!ws || ws.readyState !== WebSocket.OPEN) return;
-                const nativePCM = e.inputBuffer.getChannelData(0);
-                const pcm8k = resample(nativePCM, nativeRate, 8000);
-                const mulaw = new Uint8Array(pcm8k.length);
-                for (let i = 0; i < pcm8k.length; i++) mulaw[i] = float32ToMulaw(pcm8k[i]);
-                ws.send(JSON.stringify({ event: "media", media: { payload: toBase64(mulaw) } }));
-            };
-        };
-
-        let mediaChunksReceived = 0;
-        ws.onmessage = (evt) => {
-            let data;
-            try { data = JSON.parse(evt.data); } catch { return; }
-
-            if (data.event === 'media' && data.media && data.media.payload) {
-                if (spkCtx.state === 'suspended') spkCtx.resume();
-                mediaChunksReceived++;
-                orb.className = 'orb speaking';
-                
-                const mulaw = fromBase64(data.media.payload);
-                const float32 = new Float32Array(mulaw.length);
-                for (let i = 0; i < mulaw.length; i++) float32[i] = mulawToFloat32(mulaw[i]);
-
-                const nativeRate = spkCtx.sampleRate;
-                const resampled = resample(float32, 8000, nativeRate);
-
-                const audioBuffer = spkCtx.createBuffer(1, resampled.length, nativeRate);
-                audioBuffer.getChannelData(0).set(resampled);
-                const src = spkCtx.createBufferSource();
-                src.buffer = audioBuffer;
-                src.connect(spkCtx.destination);
-
-                if (nextPlayTime < spkCtx.currentTime) {
-                    nextPlayTime = spkCtx.currentTime + 0.05;
-                }
-                src.start(nextPlayTime);
-                nextPlayTime += audioBuffer.duration;
-                
-            } else if (data.event === 'clear') {
-                nextPlayTime = 0;
-                orb.className = 'orb listening';
-            } else if (data.event === 'log') {
-                addLog(`[Backend] ${data.message}`, 'info');
-            }
-        };
-
-        ws.onerror = (e) => {
-            addLog('WebSocket error — is the main Python server running on port 8000?', 'err');
-            badge.className = 'status-badge error';
-            badge.textContent = '● Connection Error';
-        };
-
-        ws.onclose = () => {
-            if (!ws) return;
-            ws = null;
-            stopCall();
-        };
-
-    } catch (err) {
-        addLog('Error: ' + err.message, 'err');
-        badge.className = 'status-badge error';
-        badge.textContent = '● Error';
-        startBtn.disabled = false;
-    }
-}
-
-function stopCall() {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
-    if (processor) { processor.disconnect(); processor = null; }
-    if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
-    if (micCtx) { micCtx.close(); micCtx = null; }
-    setTimeout(() => { if (spkCtx) { spkCtx.close(); spkCtx = null; } }, 3000);
-
-    ws = null;
+    ws = new WebSocket(url);
     nextPlayTime = 0;
 
-    setupDiv.style.display = 'block';
-    startBtn.disabled = false;
-    stopBtn.style.display = 'none';
-    badge.className = 'status-badge';
-    badge.textContent = '● Disconnected';
-    orb.className = 'orb';
-    addLog('Session ended.', 'info');
+    ws.onopen = () => {
+      setOrb('speaking', 'AI is greeting you…', '🤖');
+      setBadge('connected', 'Call Active');
+      addLog('WebSocket connected · AI voice engine ready', 'ok');
+
+      ws.send(JSON.stringify({
+        event: 'start',
+        streamSid: 'sandbox_' + Date.now(),
+        start: { customParameters: { candidateId: 'SANDBOX_TEST' } }
+      }));
+
+      // Microphone capture → μ-law → WebSocket
+      const source  = micCtx.createMediaStreamSource(mediaStream);
+      processor     = micCtx.createScriptProcessor(2048, 1, 1);
+      source.connect(processor);
+      processor.connect(micCtx.destination);
+      const nativeRate = micCtx.sampleRate;
+
+      processor.onaudioprocess = e => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const pcm8k  = resample(e.inputBuffer.getChannelData(0), nativeRate, 8000);
+        const mulaw  = new Uint8Array(pcm8k.length);
+        for (let i = 0; i < pcm8k.length; i++) mulaw[i] = float32ToMulaw(pcm8k[i]);
+        ws.send(JSON.stringify({ event: 'media', media: { payload: toBase64(mulaw) } }));
+      };
+    };
+
+    ws.onmessage = evt => {
+      let data;
+      try { data = JSON.parse(evt.data); } catch { return; }
+
+      if (data.event === 'media' && data.media?.payload) {
+        if (spkCtx.state === 'suspended') spkCtx.resume();
+
+        // Decode μ-law → Float32 → resample to speaker rate → schedule playback
+        const mulaw    = fromBase64(data.media.payload);
+        const f32      = new Float32Array(mulaw.length);
+        for (let i = 0; i < mulaw.length; i++) f32[i] = mulawToFloat32(mulaw[i]);
+        const resampled = resample(f32, 8000, spkCtx.sampleRate);
+        const buf       = spkCtx.createBuffer(1, resampled.length, spkCtx.sampleRate);
+        buf.getChannelData(0).set(resampled);
+        const src = spkCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(spkCtx.destination);
+        if (nextPlayTime < spkCtx.currentTime) nextPlayTime = spkCtx.currentTime + 0.04;
+        src.start(nextPlayTime);
+        nextPlayTime += buf.duration;
+
+        setOrb('speaking', 'AI is speaking…', '🤖');
+
+      } else if (data.event === 'clear') {
+        nextPlayTime = 0;
+        setOrb('listening', 'Listening to you…', '🎙️');
+        setBadge('listening', 'Listening…');
+
+      } else if (data.event === 'log') {
+        const msg = data.message || '';
+
+        if (msg.startsWith("Speaking:")) {
+          const text = msg.replace("Speaking:", "").trim();
+          addLog(`🤖 AI: ${text}`, 'ai');
+          setOrb('speaking', 'AI is speaking…', '🤖');
+          setBadge('connected', 'AI Speaking');
+
+        } else if (msg.startsWith("You said:")) {
+          const text = msg.replace("You said:", "").trim();
+          addLog(`🎙️ You: ${text}`, 'user');
+          setOrb('listening', 'You spoke — processing…', '⏳');
+          setBadge('listening', 'Processing…');
+
+        } else if (msg.startsWith("Detected candidate speech")) {
+          setOrb('listening', 'Listening to you…', '🎙️');
+          setBadge('listening', 'Listening…');
+
+        } else if (msg.startsWith("Barge-in")) {
+          addLog(`⚡ ${msg}`, 'warn');
+
+        } else {
+          addLog(msg, 'info');
+        }
+      }
+    };
+
+    ws.onerror = () => {
+      setOrb('idle', 'Connection error', '❌');
+      setBadge('error', 'Connection Error');
+      addLog('WebSocket error — is main.py running on port 8005?', 'err');
+    };
+
+    ws.onclose = () => {
+      if (!ws) return;
+      hangup();
+    };
+
+  } catch (err) {
+    setOrb('idle', 'Error', '❌');
+    setBadge('error', 'Error');
+    addLog('Error: ' + err.message, 'err');
+  }
+});
+
+// ── Hangup ────────────────────────────────────────────────────────────────────
+function hangup() {
+  if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ event: 'stop' })); ws.close(); }
+  ws = null;
+  if (processor)   { processor.disconnect(); processor = null; }
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  if (micCtx)      { micCtx.close(); micCtx = null; }
+  setTimeout(() => { if (spkCtx) { spkCtx.close(); spkCtx = null; } }, 2000);
+  nextPlayTime = 0;
+
+  setOrb('idle', 'Interview ended', '✅');
+  setBadge('', 'Disconnected');
+  addLog('─── Interview session ended ───', 'info');
 }
 
-startBtn.addEventListener('click', startCall);
-stopBtn.addEventListener('click', stopCall);
+stopBtn.addEventListener('click', () => {
+  hangup();
+  stopBtn.disabled = true;
+  stopBtn.textContent = '✅ Interview Ended — Scroll up to review transcript';
+});
 </script>
 </body>
 </html>
