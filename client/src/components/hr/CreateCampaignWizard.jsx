@@ -181,6 +181,7 @@ export default function CreateCampaignWizard() {
       await api.post(`/hr/campaigns/${campaignId}/launch`);
       navigate('/hr');
     } catch (err) {
+      console.error('[CreateCampaignWizard] Failed to launch campaign:', err);
       setError('Failed to launch campaign. Please check database connection.');
     } finally {
       setLoading(false);

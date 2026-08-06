@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import DashboardLayout from '../layout/DashboardLayout';
-import { Settings as SettingsIcon, Save, Server, Shield, Database } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Server, Database } from 'lucide-react';
 
 export default function AdminSettings() {
   const [loading, setLoading] = useState(false);

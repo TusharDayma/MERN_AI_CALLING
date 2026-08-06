@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
-import { ArrowRight, Bot, Zap, Shield, PhoneCall, BarChart3, Clock, Users, ChevronRight } from 'lucide-react';
+import { ArrowRight, Bot, Zap, Shield, PhoneCall, BarChart3, Users } from 'lucide-react';
 import Header from './Header';
 import Footer from './Footer';
 import DemoModal from './DemoModal';
@@ -124,7 +124,6 @@ const ParallaxHero = ({ onBookDemo }) => {
 
   const yText = useTransform(scrollYProgress, [0, 1], ["0%", "50%"]);
   const opacityText = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
-  const yVisual = useTransform(scrollYProgress, [0, 1], ["0%", "20%"]);
 
   return (
     <section ref={ref} className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden flex flex-col items-center justify-center min-h-[90vh]">

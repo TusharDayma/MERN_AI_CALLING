@@ -130,7 +130,7 @@ class AudioStreamManager:
                     self.speech_buffer.clear()
                     self.silence_count = 0
                     self.candidate_spoke = False
-                    await self.process_utterance(audio_to_process)
+                    asyncio.create_task(self.process_utterance(audio_to_process))
         else:
             if not self.candidate_spoke:
                 await self.send_log("Detected candidate speech...")
@@ -141,7 +141,7 @@ class AudioStreamManager:
                 audio_to_process = bytes(self.speech_buffer)
                 self.speech_buffer.clear()
                 self.candidate_spoke = False
-                await self.process_utterance(audio_to_process)
+                asyncio.create_task(self.process_utterance(audio_to_process))
 
     def clear_state(self):
         """Flushes active buffers and TTS task on clear signal."""

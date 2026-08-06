@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import DashboardLayout from '../layout/DashboardLayout';
 import api from '../../services/api';
@@ -11,11 +11,7 @@ export default function CampaignDetails() {
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
 
-  useEffect(() => {
-    fetchCampaignDetails();
-  }, [id]);
-
-  const fetchCampaignDetails = async () => {
+  const fetchCampaignDetails = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get(`/hr/campaigns/${id}`);
@@ -25,7 +21,11 @@ export default function CampaignDetails() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchCampaignDetails();
+  }, [fetchCampaignDetails]);
 
   const toggleStatus = async () => {
     if (!campaign) return;
