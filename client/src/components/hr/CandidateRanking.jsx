@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../layout/DashboardLayout';
 import api from '../../services/api';
 import { Search, FileText, X, ChevronDown, Award, Activity, Users } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 export default function CandidateRanking() {
   const [candidates, setCandidates] = useState([]);
@@ -214,7 +215,9 @@ export default function CandidateRanking() {
                 </h3>
                 <div className="bg-[#0F172A] border border-border rounded-xl p-5 font-mono text-[13px] text-slate-300 h-72 overflow-y-auto whitespace-pre-wrap leading-relaxed">
                   {selectedCandidate.dossier_json ? (
-                    JSON.stringify(selectedCandidate.dossier_json, null, 2)
+                    <span dangerouslySetInnerHTML={{ 
+                      __html: DOMPurify.sanitize(JSON.stringify(selectedCandidate.dossier_json, null, 2)) 
+                    }} />
                   ) : (
                     <div className="flex h-full items-center justify-center flex-col text-slate-500">
                       <Activity className="w-8 h-8 mb-3 animate-pulse text-primary/50" />

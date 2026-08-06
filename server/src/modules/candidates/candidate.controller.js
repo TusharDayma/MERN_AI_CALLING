@@ -1,12 +1,29 @@
 import * as candidateService from './candidate.service.js';
+import { z } from 'zod';
+import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
 
+const candidateSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters").max(100),
+  email: z.string().email("Invalid email format"),
+  contact: z.string().refine((val) => isValidPhoneNumber(val), {
+    message: "Invalid phone number format or region",
+  }).transform((val) => parsePhoneNumber(val).format('E.164')),
+  emp_details: z.string().optional()
+});
+
+const importCandidatesSchema = z.object({
+  candidates: z.array(candidateSchema).min(1, "At least one candidate is required")
+});
 export const importCandidates = async (req, res) => {
   try {
     const { id } = req.params;
-    const { candidates } = req.body;
-    const result = await candidateService.importCandidates(id, candidates || []);
+    const validatedData = importCandidatesSchema.parse(req.body);
+    const result = await candidateService.importCandidates(id, validatedData.candidates);
     res.status(201).json(result);
   } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation Failed', details: err.errors });
+    }
     console.error('Add candidates error:', err);
     res.status(500).json({ error: 'Failed to import candidates' });
   }
@@ -23,6 +40,13 @@ export const getCandidateRankings = async (req, res) => {
 };
 
 export const handleCallCompletedWebhook = async (req, res) => {
+  const expectedSecret = process.env.INTERNAL_WEBHOOK_SECRET;
+  const secret = req.headers['x-internal-webhook-secret'];
+  
+  if (!expectedSecret || secret !== expectedSecret) {
+    return res.status(403).json({ error: 'Forbidden: Invalid internal webhook secret' });
+  }
+
   try {
     const { candidate_id, ai_score, dossier_json, status } = req.body;
 

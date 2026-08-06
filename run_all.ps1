@@ -13,6 +13,7 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location `"$P
 
 # 3. Start Ngrok Tunnel
 Write-Host "[3/3] Launching Ngrok HTTP Tunnel..." -ForegroundColor Yellow
+Stop-Process -Name ngrok -Force -ErrorAction SilentlyContinue
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "ngrok http --url=stonable-remiform-augustina.ngrok-free.dev 5000"
 
 Write-Host "============================================================" -ForegroundColor Green

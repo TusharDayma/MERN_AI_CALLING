@@ -21,8 +21,15 @@ async def post_call_results(candidate_id: str, ai_score: int, dossier_json: dict
     }
 
     try:
+        import os
+        INTERNAL_WEBHOOK_SECRET = os.getenv("INTERNAL_WEBHOOK_SECRET", "super_secure_internal_secret_123")
+        headers = {
+            "Content-Type": "application/json",
+            "X-Internal-Webhook-Secret": INTERNAL_WEBHOOK_SECRET
+        }
+
         def _post():
-            response = requests.post(EXPRESS_WEBHOOK_URL, json=payload, timeout=10)
+            response = requests.post(EXPRESS_WEBHOOK_URL, json=payload, headers=headers, timeout=10)
             response.raise_for_status()
             return response
 

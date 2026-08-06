@@ -3,15 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import ProtectedRoute from './components/shared/ProtectedRoute';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 // Landing Page Components
-import Header from './components/Header';
-import Hero from './components/Hero';
-import WorkflowScroll from './components/WorkflowScroll';
-import Features from './components/Features';
-import AboutPrivacy from './components/AboutPrivacy';
-import Pricing from './components/Pricing';
-import DocsTeaser from './components/DocsTeaser';
-import Footer from './components/Footer';
-import DemoModal from './components/DemoModal';
+import LandingPage from './components/LandingPage';
 
 // Auth Components
 const AuthPage = lazy(() => import('./pages/auth/AuthPage'));
@@ -29,29 +21,6 @@ const CampaignDetails = lazy(() => import('./components/hr/CampaignDetails'));
 
 function PageLoader() {
   return <div className="flex min-h-screen items-center justify-center bg-background"><div className="h-10 w-10 animate-spin rounded-full border-4 border-primary-light border-t-primary" aria-label="Loading page" /></div>;
-}
-
-function LandingPage() {
-  const [isDemoModalOpen, setIsDemoModalOpen] = React.useState(false);
-
-  const openDemoModal = () => setIsDemoModalOpen(true);
-  const closeDemoModal = () => setIsDemoModalOpen(false);
-
-  return (
-    <>
-      <Header onBookDemo={openDemoModal} />
-      <main>
-        <Hero onBookDemo={openDemoModal} />
-        <WorkflowScroll />
-        <Features />
-        <AboutPrivacy />
-        <Pricing onBookDemo={openDemoModal} />
-        <DocsTeaser />
-      </main>
-      <Footer />
-      <DemoModal isOpen={isDemoModalOpen} onClose={closeDemoModal} />
-    </>
-  );
 }
 
 export default function App() {

@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import http from 'http';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 dotenv.config();
 
@@ -26,11 +28,28 @@ const wsProxy = createProxyMiddleware({
 app.use('/media-stream', wsProxy);
 
 // Middleware
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Domain Routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many authentication attempts, please try again after 15 minutes.' }
+});
+
+const launchLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 50,
+  message: { error: 'Campaign launch limit exceeded for this IP.' }
+});
+
+app.use('/api/auth/signin', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/hr/campaigns/:id/launch', launchLimiter);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/hr/campaigns', campaignRoutes);
