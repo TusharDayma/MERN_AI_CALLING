@@ -16,16 +16,30 @@ export default function AuthPage({ defaultMode = 'signin' }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    
+    const cleanIdentifier = formData.email.trim();
+    const cleanPassword = formData.password.trim();
+
+    if (!isSignIn && cleanPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    setLoading(true);
     try {
       if (isSignIn) {
-        const res = await api.post('/auth/signin', { identifier: formData.email, password: formData.password });
+        const res = await api.post('/auth/signin', { identifier: cleanIdentifier, password: cleanPassword });
         localStorage.setItem('token', res.data.token);
         localStorage.setItem('user', JSON.stringify(res.data.user));
         navigate(res.data.user.role === 'ADMIN' ? '/admin' : '/hr');
       } else {
-        await api.post('/auth/signup', formData);
+        await api.post('/auth/signup', {
+          name: formData.name.trim(),
+          username: formData.username.trim(),
+          email: cleanIdentifier,
+          password: cleanPassword
+        });
         setIsSignIn(true);
         setError('Account created successfully. Please sign in.');
       }

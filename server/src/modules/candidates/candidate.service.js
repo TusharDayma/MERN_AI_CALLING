@@ -67,3 +67,10 @@ export const updateCandidateResults = async (candidateId, { ai_score, dossier_js
     }
   });
 };
+
+export const updateCandidateScore = async (candidateId, newScore) => {
+  return await prisma.candidate.update({
+    where: { id: candidateId },
+    data: { ai_score: newScore }
+  });
+};

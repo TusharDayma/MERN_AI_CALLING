@@ -1,9 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
-import { ArrowRight, Bot, Zap, Shield, PhoneCall, BarChart3, Users } from 'lucide-react';
+import { ArrowRight, Bot, Zap, Shield, PhoneCall, BarChart3, Users, Layout, Server, Brain } from 'lucide-react';
 import Header from './Header';
 import Footer from './Footer';
-import DemoModal from './DemoModal';
+import Pricing from './Pricing';
+import { useNavigate } from 'react-router-dom';
 
 // --- Reusable UI Elements ---
 
@@ -144,7 +145,7 @@ const ParallaxHero = ({ onBookDemo }) => {
           <span className="flex h-2 w-2 rounded-full bg-primary relative">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
           </span>
-          AntiGravity Engine 2.0 Now Live
+          AntiTalk Engine Now Live
         </motion.div>
 
         <motion.h1 
@@ -177,7 +178,7 @@ const ParallaxHero = ({ onBookDemo }) => {
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
           <EnterpriseButton onClick={onBookDemo} className="w-full sm:w-auto h-14 px-8 text-lg">
-            Request Demo <ArrowRight size={20} />
+            Start Free Trial <ArrowRight size={20} />
           </EnterpriseButton>
           <EnterpriseButton primary={false} href="https://github.com" className="w-full sm:w-auto h-14 px-8 text-lg">
             Read Documentation
@@ -195,6 +196,7 @@ const HorizontalScrollWorkflow = () => {
   const targetRef = useRef(null);
   const { scrollYProgress } = useScroll({
     target: targetRef,
+    offset: ["start start", "end end"]
   });
 
   const x = useTransform(scrollYProgress, [0, 1], ["0%", "-75%"]);
@@ -206,33 +208,37 @@ const HorizontalScrollWorkflow = () => {
       step: "01",
       title: "Upload Candidate List",
       desc: "Import hundreds of candidates instantly via CSV. Map roles, expected salaries, and required skills.",
-      icon: Users
+      icon: Users,
+      color: "from-blue-500/20 to-purple-500/20"
     },
     {
       step: "02",
       title: "One-Click Dispatch",
       desc: "Trigger campaigns manually or automatically. The AntiGravity engine routes secure WebSockets directly to the Exotel telephony gateway.",
-      icon: Zap
+      icon: Zap,
+      color: "from-amber-500/20 to-orange-500/20"
     },
     {
       step: "03",
       title: "Real-Time AI Interview",
       desc: "Groq-powered Llama 3 interacts dynamically with candidates, assessing both technical depth and communication fluency with sub-300ms latency.",
-      icon: Bot
+      icon: Bot,
+      color: "from-emerald-500/20 to-teal-500/20"
     },
     {
       step: "04",
       title: "Instant Dossier Analysis",
       desc: "Receive a scored JSON dossier (0-100) immediately upon call termination, detailing strengths, weaknesses, and a full structured transcript.",
-      icon: BarChart3
+      icon: BarChart3,
+      color: "from-indigo-500/20 to-blue-500/20"
     }
   ];
 
   return (
-    <section ref={targetRef} className="relative h-[400vh] bg-background">
-      <div className="sticky top-0 h-screen flex flex-col justify-center items-start overflow-hidden pt-20">
+    <section id="workflow" ref={targetRef} className="relative h-[400vh] bg-background">
+      <div className="sticky top-0 h-screen flex flex-col justify-center items-start overflow-hidden pt-12 md:pt-20">
         
-        <div className="container mx-auto px-6 mb-12">
+        <div className="container mx-auto px-6 mb-8 md:mb-12 relative z-10">
           <h2 className="text-4xl md:text-5xl font-extrabold text-text-primary tracking-tight">
             The intelligent screening pipeline.
           </h2>
@@ -241,22 +247,44 @@ const HorizontalScrollWorkflow = () => {
           </p>
         </div>
 
-        <div className="relative w-full">
+        <div className="relative w-full flex-grow flex flex-col justify-center">
           {/* Progress Bar Background */}
-          <div className="absolute top-0 left-0 w-full h-0.5 bg-border z-0">
-            <motion.div style={{ width: progressWidth }} className="h-full bg-primary" />
+          <div className="absolute top-0 left-0 w-full h-1 bg-border/50 z-0">
+            <motion.div style={{ width: progressWidth }} className="h-full bg-gradient-to-r from-primary to-info rounded-r-full" />
           </div>
 
-          <motion.div style={{ x }} className="flex w-[400vw] h-full pt-16">
+          <motion.div style={{ x }} className="flex w-[400vw] h-full items-center">
             {steps.map((item, idx) => (
               <div key={idx} className="w-[100vw] flex-shrink-0 px-6 sm:px-12 md:px-24">
-                <div className="max-w-xl">
-                  <div className="text-primary font-mono text-6xl font-bold mb-6 opacity-20">{item.step}</div>
-                  <div className="h-16 w-16 rounded-2xl bg-surface border border-border shadow-sm flex items-center justify-center mb-6 text-primary">
-                    <item.icon size={32} />
+                <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-12 md:gap-24">
+                  {/* Text Content */}
+                  <div className="flex-1 max-w-xl">
+                    <div className="text-primary font-mono text-7xl font-black mb-6 opacity-40 drop-shadow-sm">{item.step}</div>
+                    <div className="h-16 w-16 rounded-2xl bg-surface border border-border shadow-sm flex items-center justify-center mb-8 text-primary relative overflow-hidden">
+                      <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-50`} />
+                      <item.icon size={32} className="relative z-10" />
+                    </div>
+                    <h3 className="text-3xl md:text-4xl font-bold text-text-primary mb-6 leading-tight">{item.title}</h3>
+                    <p className="text-xl text-text-secondary leading-relaxed">{item.desc}</p>
                   </div>
-                  <h3 className="text-3xl font-bold text-text-primary mb-4">{item.title}</h3>
-                  <p className="text-xl text-text-secondary leading-relaxed">{item.desc}</p>
+                  
+                  {/* Visual Card */}
+                  <div className="flex-1 w-full max-w-2xl hidden md:flex items-center justify-center">
+                    <div className="w-full aspect-[4/3] rounded-3xl bg-surface border border-border shadow-2xl relative overflow-hidden group">
+                      <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-30 transition-opacity duration-500 group-hover:opacity-50`} />
+                      
+                      {/* Decorative Background Elements */}
+                      <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
+                      <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-black/5 rounded-full blur-3xl" />
+                      
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-primary/40 group-hover:text-primary/60 transition-colors duration-500 group-hover:scale-110 transform">
+                        <item.icon size={160} strokeWidth={1} />
+                        <div className="mt-8 px-6 py-2 rounded-full border border-primary/20 bg-background/50 backdrop-blur-sm text-sm font-medium tracking-wide">
+                          Step {item.step} Visualization
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -269,7 +297,7 @@ const HorizontalScrollWorkflow = () => {
 
 const AdvancedBentoFeatures = () => {
   return (
-    <section className="py-32 bg-surface-raised relative border-y border-border">
+    <section id="features" className="py-32 bg-surface-raised relative border-y border-border">
       <div className="container mx-auto px-6 max-w-7xl">
         
         <div className="text-center mb-20">
@@ -347,6 +375,66 @@ const AdvancedBentoFeatures = () => {
   );
 };
 
+const ProjectSummarySection = () => {
+  return (
+    <section id="about" className="py-24 bg-background relative overflow-hidden border-b border-border">
+      <div className="container mx-auto px-6 max-w-6xl">
+        <div className="mb-16 md:text-center max-w-3xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-border shadow-sm mb-6 text-sm font-medium text-primary"
+          >
+            System Architecture
+          </motion.div>
+          <motion.h2 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="text-4xl md:text-5xl font-extrabold text-text-primary tracking-tight mb-6"
+          >
+            Comprehensive Platform Summary
+          </motion.h2>
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2 }}
+            className="text-lg text-text-secondary leading-relaxed"
+          >
+            AntiTalk is an enterprise-grade multi-agent B2B SaaS platform engineered to revolutionize the recruitment pipeline. 
+            By leveraging real-time, autonomous AI voice agents over telephony streams, AntiTalk automates initial candidate phone screenings, 
+            allowing HR departments to scale their hiring efforts exponentially while maintaining a high bar for technical evaluation.
+          </motion.p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <BentoCard
+            title="Frontend Application"
+            description="A sleek, dark-mode dashboard built with React 18, Vite, and Tailwind CSS. It manages campaigns, handles candidate CSV uploads, and displays live rankings and interactive candidate dossiers."
+            icon={Layout}
+            className="bg-surface-raised"
+          />
+          <BentoCard
+            title="Core API Backend"
+            description="A robust Node.js and Express API powered by Prisma ORM and SQLite. It handles JWT authentication, RBAC, webhook endpoints, and triggers Exotel voice campaigns."
+            icon={Server}
+            className="bg-surface-raised"
+          />
+          <BentoCard
+            title="Multi-Agent AI Engine"
+            description="A Python FastAPI server managing bi-directional WebSockets. It orchestrates four AI agents (STT, LLM Brain, TTS, and Analyst) using Groq Llama 3 to conduct ultra-low latency real-time interviews."
+            icon={Brain}
+            className="bg-surface-raised"
+          />
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const CTASection = ({ onBookDemo }) => {
   return (
     <section className="py-32 relative overflow-hidden bg-background">
@@ -369,7 +457,7 @@ const CTASection = ({ onBookDemo }) => {
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4 relative z-10">
             <EnterpriseButton onClick={onBookDemo} className="h-14 px-8 text-lg w-full sm:w-auto">
-              Request Demo
+              Start Free Trial
             </EnterpriseButton>
             <EnterpriseButton primary={false} href="mailto:sales@antitalk.com" className="h-14 px-8 text-lg w-full sm:w-auto">
               Contact Sales
@@ -382,10 +470,11 @@ const CTASection = ({ onBookDemo }) => {
 };
 
 export default function LandingPage() {
-  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
+  const navigate = useNavigate();
 
-  const openDemoModal = () => setIsDemoModalOpen(true);
-  const closeDemoModal = () => setIsDemoModalOpen(false);
+  const handleStartTrial = () => {
+    navigate('/signup');
+  };
 
   // Smooth scroll behavior
   useEffect(() => {
@@ -397,16 +486,17 @@ export default function LandingPage() {
 
   return (
     <div className="bg-background min-h-screen text-text-primary selection:bg-primary/20 selection:text-primary">
-      <Header onBookDemo={openDemoModal} />
+      <Header onBookDemo={handleStartTrial} isLanding={true} />
       <main>
-        <ParallaxHero onBookDemo={openDemoModal} />
+        <ParallaxHero onBookDemo={handleStartTrial} />
 
         <HorizontalScrollWorkflow />
         <AdvancedBentoFeatures />
-        <CTASection onBookDemo={openDemoModal} />
+        <ProjectSummarySection />
+        <Pricing onBookDemo={handleStartTrial} />
+        <CTASection onBookDemo={handleStartTrial} />
       </main>
       <Footer />
-      <DemoModal isOpen={isDemoModalOpen} onClose={closeDemoModal} />
     </div>
   );
 }

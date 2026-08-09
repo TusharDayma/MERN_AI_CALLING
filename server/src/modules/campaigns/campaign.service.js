@@ -108,18 +108,36 @@ export const addCampaignQuestions = async (campaignId, questions) => {
 };
 
 export const launchCampaign = async (campaignId) => {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    include: { candidates: true }
+  });
+
+  if (!campaign) {
+    const error = new Error('Campaign not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const hr = await prisma.user.findUnique({
+    where: { id: campaign.created_by_hr_id }
+  });
+
+  const candidatesCount = campaign.candidates.length;
+  if (hr.credits_balance < candidatesCount) {
+    const error = new Error(`Insufficient credits. You need ${candidatesCount} credits to launch this campaign, but you only have ${hr.credits_balance}.`);
+    error.statusCode = 402;
+    throw error;
+  }
+
   await prisma.campaign.update({
     where: { id: campaignId },
     data: { status: 'ACTIVE' }
   });
 
-  const candidates = await prisma.candidate.findMany({
-    where: { campaign_id: campaignId }
-  });
+  console.log(`[Campaign Service] Launching campaign ${campaignId}. Dispatching voice calls to ${candidatesCount} candidate(s)...`);
 
-  console.log(`[Campaign Service] Launching campaign ${campaignId}. Dispatching voice calls to ${candidates.length} candidate(s)...`);
-
-  for (const candidate of candidates) {
+  for (const candidate of campaign.candidates) {
     try {
       await dispatchExotelCall(candidate.id);
     } catch (err) {

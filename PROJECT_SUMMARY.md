@@ -1,4 +1,4 @@
-﻿# AntiTalk Platform: Comprehensive Architecture & System Documentation
+# AntiTalk Platform: Comprehensive Architecture & System Documentation
 
 ## Executive Summary & System Purpose
 
@@ -7,7 +7,9 @@
 ### Key Business Impact
 - **Massive Scalability**: Recruiter launches campaigns for hundreds of candidates simultaneously with a single CSV upload.
 - **Unbiased & Standardized Screenings**: Candidates receive identical technical evaluations and non-judgmental interactions.
+- **Product-Led Growth (PLG) Ready**: Integrated credit billing system tracks usage limits and gracefully upsells HR users via an automated funnel when trial credits deplete.
 - **Instant Quantitative & Qualitative Analytics**: HR receives an AI score (0–100), full interview transcripts, and parsed dossiers outlining candidate strengths and weaknesses immediately upon call termination.
+- **Human-in-the-Loop QA**: HR maintains final authority with the ability to review interactive chat transcripts and manually override AI evaluations.
 
 ---
 
@@ -59,8 +61,8 @@ flowchart TB
 
 | Layer | Stack / Technologies | Key Responsibilities |
 | :--- | :--- | :--- |
-| **Frontend Application** | React 18, Vite, Tailwind CSS, Lucide Icons, Framer Motion | Provides dark-mode management UI for Admin & HR portals, candidate CSV uploading, live rankings, and interactive dossier popups |
-| **Core API Backend** | Node.js, Express.js, Prisma ORM, SQLite | Handles JWT authentication, Role-Based Access Control (RBAC), database persistence, Exotel REST API call triggers, and webhook endpoints |
+| **Frontend Application** | React 18, Vite, Tailwind CSS, Lucide Icons, Framer Motion | Provides dark-mode management UI for Admin & HR portals, candidate CSV uploading, live rankings, Upsell funnels, and interactive dossier popups |
+| **Backend Core** | Node.js, Express.js, Prisma ORM, SQLite, Zod | Auth (JWT), RBAC, campaign orchestration, input validation, DB persistence, Exotel call dispatch & webhooks, call billing (PLG credits algorithm) & accounting |
 | **AI Engine Server** | Python 3.10+, FastAPI, Uvicorn, WebSockets | Streams bi-directional 8kHz $\mu$-law audio over WebSockets with Voice Activity Detection (VAD) and barge-in capability |
 | **Speech-to-Text (STT)** | `Groq Whisper API` | Real-time transcription of incoming candidate voice audio |
 | **LLM Brain & Analyst** | `Groq Llama 3 API` | Conversational interview state machine (evaluating criteria, handling re-asks) & post-call dossier analyst |
@@ -90,6 +92,9 @@ erDiagram
         String password_hash
         Role role "ADMIN | HR"
         UserStatus status "ACTIVE | DEACTIVATED"
+        Float total_voice_minutes
+        Float credits_balance
+        Float api_cost
         Boolean is_deleted
         DateTime created_at
         DateTime updated_at

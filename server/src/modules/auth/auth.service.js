@@ -120,3 +120,43 @@ export const updateUserProfile = async (userId, { name, email, currentPassword, 
     role: updatedUser.role
   };
 };
+
+export const getUserProfile = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      username: true,
+      role: true,
+      status: true,
+      credits_balance: true,
+      total_voice_minutes: true,
+      api_cost: true
+    }
+  });
+
+  if (!user) {
+    const error = new Error('User not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  return user;
+};
+
+export const upgradeAccount = async (userId) => {
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      credits_balance: { increment: 500 }
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      credits_balance: true
+    }
+  });
+  return updatedUser;
+};

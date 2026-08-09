@@ -4,11 +4,13 @@ import ProtectedRoute from './components/shared/ProtectedRoute';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 // Landing Page Components
 import LandingPage from './components/LandingPage';
+const DocsPage = lazy(() => import('./pages/DocsPage'));
 
 // Auth Components
 const AuthPage = lazy(() => import('./pages/auth/AuthPage'));
 const Profile = lazy(() => import('./components/shared/Profile'));
 const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
+const SystemHealth = lazy(() => import('./components/admin/SystemHealth'));
 const UserManagement = lazy(() => import('./components/admin/UserManagement'));
 const AdminNotifications = lazy(() => import('./components/admin/AdminNotifications'));
 const AdminSettings = lazy(() => import('./components/admin/AdminSettings'));
@@ -18,6 +20,7 @@ const CreateCampaignWizard = lazy(() => import('./components/hr/CreateCampaignWi
 const JobRoles = lazy(() => import('./components/hr/JobRoles'));
 const CampaignManagement = lazy(() => import('./components/hr/CampaignManagement'));
 const CampaignDetails = lazy(() => import('./components/hr/CampaignDetails'));
+const AgentStudio = lazy(() => import('./components/hr/AgentStudio'));
 
 function PageLoader() {
   return <div className="flex min-h-screen items-center justify-center bg-background"><div className="h-10 w-10 animate-spin rounded-full border-4 border-primary-light border-t-primary" aria-label="Loading page" /></div>;
@@ -31,6 +34,7 @@ export default function App() {
           <Suspense fallback={<PageLoader />}><Routes>
             {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/docs" element={<DocsPage />} />
           <Route path="/signup" element={<AuthPage defaultMode="signup" />} />
           <Route path="/signin" element={<AuthPage defaultMode="signin" />} />
           
@@ -42,6 +46,7 @@ export default function App() {
           {/* Protected Admin Routes */}
           <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'admin']} />}>
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/health" element={<SystemHealth />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/notifications" element={<AdminNotifications />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
@@ -55,6 +60,7 @@ export default function App() {
             <Route path="/hr/ranking" element={<CandidateRanking />} />
             <Route path="/hr/campaigns/create" element={<CreateCampaignWizard />} />
             <Route path="/hr/job-roles" element={<JobRoles />} />
+            <Route path="/hr/agent-studio" element={<AgentStudio />} />
           </Route>
           
           <Route path="*" element={<Navigate to="/" replace />} />

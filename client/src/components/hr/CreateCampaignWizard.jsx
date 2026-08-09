@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../layout/DashboardLayout';
 import api from '../../services/api';
 import Papa from 'papaparse';
+import LocationSelector from '../shared/LocationSelector';
 import { 
   Upload, 
   ChevronRight, 
@@ -94,6 +95,54 @@ export default function CreateCampaignWizard() {
   }, []);
 
   // ── Candidate helpers ─────────────────────────────────────────────────────
+  // ── Security & Sanitization Helpers ─────────────────────────────────────────
+  const sanitizeInput = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/<[^>]*>?/gm, '').replace(/^[=+\-@]/, '').trim();
+  };
+
+  const normalizePhone = (phoneStr) => {
+    let cleaned = String(phoneStr || '').replace(/[^\d+]/g, '');
+    if (!cleaned) return '';
+    if (!cleaned.startsWith('+')) {
+      if (cleaned.length === 10) cleaned = `+1${cleaned}`;
+      else cleaned = `+${cleaned}`;
+    }
+    return cleaned;
+  };
+
+  const isValidPhone = (phoneStr) => {
+    const normalized = normalizePhone(phoneStr);
+    const digitsOnly = normalized.replace(/\D/g, '');
+    return digitsOnly.length >= 10 && digitsOnly.length <= 15 && /^\+[1-9]\d{9,14}$/.test(normalized);
+  };
+
+  const isValidEmail = (emailStr) => {
+    if (!emailStr || emailStr.trim() === '' || emailStr.toLowerCase() === 'n/a') return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr.trim());
+  };
+
+  const deduplicateCandidates = (candList) => {
+    const seenContacts = new Set();
+    const seenEmails = new Set();
+    const unique = [];
+
+    for (const c of candList) {
+      const phoneKey = normalizePhone(c.contact);
+      const emailKey = (c.email || '').toLowerCase().trim();
+
+      if (phoneKey && seenContacts.has(phoneKey)) continue;
+      if (emailKey && emailKey !== 'n/a' && seenEmails.has(emailKey)) continue;
+
+      if (phoneKey) seenContacts.add(phoneKey);
+      if (emailKey && emailKey !== 'n/a') seenEmails.add(emailKey);
+      unique.push({ ...c, contact: phoneKey || c.contact });
+    }
+
+    return unique;
+  };
+
+  // ── Candidate helpers ─────────────────────────────────────────────────────
   const cleanAndNormalizeCandidate = (raw, source = 'CSV') => {
     const getVal = (possibleKeys) => {
       for (const key of Object.keys(raw)) {
@@ -103,13 +152,13 @@ export default function CreateCampaignWizard() {
       }
       return '';
     };
-    const nameVal    = raw.name    ? String(raw.name).trim()    : getVal(['name', 'full name', 'fullname', 'candidate name', 'candidate']);
-    const emailVal   = raw.email   ? String(raw.email).trim().toLowerCase() : getVal(['email', 'e-mail', 'email address']).toLowerCase();
-    const contactVal = raw.contact ? String(raw.contact).trim() : getVal(['contact', 'phone', 'mobile', 'phone number', 'contact number']);
-    const empDetailsVal = raw.emp_details ? String(raw.emp_details).trim() : getVal(['emp_details', 'emp details', 'details', 'experience', 'role details']);
+    const nameVal    = sanitizeInput(raw.name ? String(raw.name) : getVal(['name', 'full name', 'fullname', 'candidate name', 'candidate']));
+    const emailVal   = sanitizeInput(raw.email ? String(raw.email).toLowerCase() : getVal(['email', 'e-mail', 'email address']).toLowerCase());
+    const contactVal = normalizePhone(raw.contact ? String(raw.contact) : getVal(['contact', 'phone', 'mobile', 'phone number', 'contact number']));
+    const empDetailsVal = sanitizeInput(raw.emp_details ? String(raw.emp_details) : getVal(['emp_details', 'emp details', 'details', 'experience', 'role details']));
     return {
       tempId: `cand_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-      name: nameVal, email: emailVal, contact: contactVal,
+      name: nameVal, email: emailVal || 'N/A', contact: contactVal,
       emp_details: empDetailsVal || 'N/A', source
     };
   };
@@ -117,14 +166,34 @@ export default function CreateCampaignWizard() {
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    setError('');
+
+    // Security Check: File Size Limit (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      const msg = 'CSV File size exceeds the maximum limit of 5MB.';
+      setError(msg);
+      alert(`⚠️ File Error:\n\n${msg}`);
+      e.target.value = '';
+      return;
+    }
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
         const parsed = results.data
           .map(row => cleanAndNormalizeCandidate(row, 'CSV'))
-          .filter(c => c.name !== '' || c.contact !== '');
-        setCandidates(prev => [...prev, ...parsed]);
+          .filter(c => c.name.length >= 2 && isValidPhone(c.contact) && isValidEmail(c.email));
+        
+        if (parsed.length === 0) {
+          const msg = 'No valid candidates found in CSV. Please ensure names, valid emails, and full phone numbers (10+ digits) are provided.';
+          setError(msg);
+          alert(`⚠️ Invalid CSV Data:\n\n${msg}`);
+          e.target.value = '';
+          return;
+        }
+
+        setCandidates(prev => deduplicateCandidates([...prev, ...parsed]));
         e.target.value = '';
       }
     });
@@ -133,10 +202,33 @@ export default function CreateCampaignWizard() {
   const handleAddManualCandidate = (e) => {
     e.preventDefault();
     setManualFormError('');
-    if (!manualName.trim()) { setManualFormError('Candidate name is required.'); return; }
-    if (!manualContact.trim()) { setManualFormError('Contact number is required for voice calling.'); return; }
-    const newCandidate = cleanAndNormalizeCandidate({ name: manualName, email: manualEmail, contact: manualContact, emp_details: manualEmpDetails }, 'Manual');
-    setCandidates(prev => [...prev, newCandidate]);
+    const cleanName = sanitizeInput(manualName);
+    const cleanEmail = sanitizeInput(manualEmail).toLowerCase();
+    const cleanContact = normalizePhone(manualContact);
+
+    if (cleanName.length < 2) {
+      const msg = 'Candidate full name is required (at least 2 characters).';
+      setManualFormError(msg);
+      alert(`⚠️ Validation Error:\n\n${msg}`);
+      return;
+    }
+
+    if (cleanEmail && cleanEmail !== 'n/a' && !isValidEmail(cleanEmail)) {
+      const msg = `Invalid email address "${manualEmail}". Please enter a valid email format (e.g. name@company.com).`;
+      setManualFormError(msg);
+      alert(`⚠️ Invalid Email Format:\n\n${msg}`);
+      return;
+    }
+
+    if (!isValidPhone(cleanContact)) {
+      const msg = `Invalid phone number "${manualContact}". Please enter a full phone number with country code (minimum 10 digits, e.g. +14155552671 or +919876543210).`;
+      setManualFormError(msg);
+      alert(`⚠️ Invalid Phone Number:\n\n${msg}`);
+      return;
+    }
+
+    const newCandidate = cleanAndNormalizeCandidate({ name: cleanName, email: cleanEmail, contact: cleanContact, emp_details: manualEmpDetails }, 'Manual');
+    setCandidates(prev => deduplicateCandidates([...prev, newCandidate]));
     setManualName(''); setManualEmail(''); setManualContact(''); setManualEmpDetails('');
   };
 
@@ -147,7 +239,7 @@ export default function CreateCampaignWizard() {
   const addQuestion = () => setQuestions(prev => [...prev, newQuestion()]);
   const removeQuestion = (id) => setQuestions(prev => prev.filter(q => q.id !== id));
   const updateQuestion = (id, field, value) =>
-    setQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q));
+    setQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: sanitizeInput(value) } : q));
 
   const insertTemplate = (tpl) => {
     const exists = questions.some(q => q.text.trim() === tpl.text.trim());
@@ -159,22 +251,36 @@ export default function CreateCampaignWizard() {
     }
   };
 
-  const validQuestions = questions.filter(q => q.text.trim());
+  const validQuestions = questions
+    .map(q => ({
+      ...q,
+      text: sanitizeInput(q.text),
+      key_criteria: sanitizeInput(q.key_criteria)
+    }))
+    .filter(q => q.text.length >= 5);
 
   // ── Launch ────────────────────────────────────────────────────────────────
   const handleLaunch = async () => {
+    const cleanName = sanitizeInput(name);
+    const cleanLocation = sanitizeInput(location);
+
+    if (cleanName.length < 3) {
+      setError('Campaign Name must be at least 3 characters long.');
+      setStep(1); return;
+    }
     if (candidates.length === 0) {
       setError('Please add at least one candidate to launch the campaign.');
       setStep(2); return;
     }
     if (validQuestions.length === 0) {
-      setError('Please add at least one screening question.');
+      setError('Please add at least one valid screening question (min 5 characters).');
       setStep(3); return;
     }
+
     setLoading(true);
     setError('');
     try {
-      const campRes = await api.post('/hr/campaigns', { name, location: location || 'Not specified', job_role_id: jobRoleId });
+      const campRes = await api.post('/hr/campaigns', { name: cleanName, location: cleanLocation || 'Not specified', job_role_id: jobRoleId });
       const campaignId = campRes.data.id;
       await api.post(`/hr/campaigns/${campaignId}/candidates`, { candidates });
       await api.post(`/hr/campaigns/${campaignId}/questions`, { questions: validQuestions });
@@ -182,7 +288,7 @@ export default function CreateCampaignWizard() {
       navigate('/hr');
     } catch (err) {
       console.error('[CreateCampaignWizard] Failed to launch campaign:', err);
-      setError('Failed to launch campaign. Please check database connection.');
+      setError(err.response?.data?.error || 'Failed to launch campaign. Please check input parameters.');
     } finally {
       setLoading(false);
     }
@@ -232,12 +338,7 @@ export default function CreateCampaignWizard() {
                   className="w-full"
                   placeholder="e.g. Q3 Senior Node.js Developers" />
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1.5">Location</label>
-                <input type="text" value={location} onChange={e => setLocation(e.target.value)}
-                  className="w-full"
-                  placeholder="e.g. Remote / New York / San Francisco" />
-              </div>
+              <LocationSelector value={location} onChange={setLocation} />
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1.5">Target Job Role</label>
                 <select value={jobRoleId} onChange={e => setJobRoleId(e.target.value)}

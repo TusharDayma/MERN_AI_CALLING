@@ -3,6 +3,7 @@ import DashboardLayout from '../layout/DashboardLayout';
 import api from '../../services/api';
 import { Briefcase, Play, Pause, Users, Trash2, Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import UpgradeModal from '../shared/UpgradeModal';
 
 function StatusBadge({ status }) {
   const map = {
@@ -16,6 +17,7 @@ function StatusBadge({ status }) {
 
 export default function CampaignManagement() {
   const [campaigns, setCampaigns] = useState([]);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => { fetchCampaigns(); }, []);
@@ -32,7 +34,14 @@ export default function CampaignManagement() {
     try {
       await api.patch(`/hr/campaigns/${id}/status`, { status: newStatus });
       fetchCampaigns();
-    } catch (err) { console.error('Failed to toggle status', err); }
+    } catch (err) {
+      console.error('Failed to toggle status', err);
+      if (err.response?.status === 402) {
+        setIsUpgradeModalOpen(true);
+      } else {
+        alert(err.response?.data?.error || 'Failed to toggle status');
+      }
+    }
   };
 
   const handleDeleteCampaign = async (id, name) => {
@@ -144,6 +153,15 @@ export default function CampaignManagement() {
           </div>
         </div>
       </div>
+
+      <UpgradeModal 
+        isOpen={isUpgradeModalOpen} 
+        onClose={() => setIsUpgradeModalOpen(false)}
+        onSuccess={() => {
+          // Could refresh profile globally if using context, but page reload works for now or just fetch
+          window.location.reload();
+        }}
+      />
     </DashboardLayout>
   );
 }

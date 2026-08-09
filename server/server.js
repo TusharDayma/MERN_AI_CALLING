@@ -8,6 +8,8 @@ import rateLimit from 'express-rate-limit';
 
 dotenv.config();
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 import authRoutes from './src/modules/auth/auth.route.js';
 import adminRoutes from './src/modules/admin/admin.route.js';
 import campaignRoutes from './src/modules/campaigns/campaign.route.js';

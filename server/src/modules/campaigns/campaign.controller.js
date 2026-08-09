@@ -50,11 +50,35 @@ export const deleteJobRole = async (req, res) => {
   }
 };
 
+import { z } from 'zod';
+
+const createCampaignSchema = z.object({
+  name: z.string().min(3, "Campaign name must be at least 3 characters").max(100, "Campaign name cannot exceed 100 characters"),
+  location: z.string().max(100, "Location cannot exceed 100 characters").optional(),
+  job_role_id: z.string().uuid("Invalid job role ID format")
+});
+
+const questionSchema = z.object({
+  text: z.string().min(5, "Question text must be at least 5 characters").max(400, "Question text cannot exceed 400 characters"),
+  key_criteria: z.string().max(500).optional(),
+  category: z.string().optional(),
+  type: z.string().optional(),
+  level: z.string().optional()
+});
+
+const addQuestionsSchema = z.object({
+  questions: z.array(questionSchema).min(1, "At least one question is required")
+});
+
 export const createCampaign = async (req, res) => {
   try {
-    const campaign = await campaignService.createCampaign(req.user.id, req.body);
+    const validatedData = createCampaignSchema.parse(req.body);
+    const campaign = await campaignService.createCampaign(req.user.id, validatedData);
     res.status(201).json(campaign);
   } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation Failed', details: err.errors });
+    }
     console.error('[CampaignController] createCampaign error:', err);
     res.status(500).json({ error: 'Failed to create campaign' });
   }
@@ -82,9 +106,13 @@ export const getCampaignDetails = async (req, res) => {
 
 export const addQuestions = async (req, res) => {
   try {
-    const result = await campaignService.addCampaignQuestions(req.params.id, req.body.questions || []);
+    const validatedData = addQuestionsSchema.parse(req.body);
+    const result = await campaignService.addCampaignQuestions(req.params.id, validatedData.questions);
     res.status(201).json(result);
   } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation Failed', details: err.errors });
+    }
     console.error('[CampaignController] addQuestions error:', err);
     res.status(500).json({ error: 'Failed to add questions to campaign' });
   }

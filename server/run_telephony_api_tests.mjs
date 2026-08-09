@@ -8,6 +8,8 @@
  *   node run_telephony_api_tests.mjs
  */
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const BASE = "http://localhost:5000";
 let passed = 0, failed = 0, errors = [];
 let HR_TOKEN = "";
@@ -105,9 +107,9 @@ async function setupTestCandidate() {
     const campaignId = createCampaignRes.data?.id;
     
     // 3. Add Candidate
-    const addCandidateRes = await req("POST", `/api/hr/candidates/campaigns/${campaignId}/candidates`, {
+    const addCandidateRes = await req("POST", `/api/hr/campaigns/${campaignId}/candidates`, {
       candidates: [
-        { name: "Test Candidate Alpha", email: "alpha@test.com", contact: "+11234567890", emp_details: "3 years experience" }
+        { name: "Test Candidate Alpha", email: "alpha@test.com", contact: "+14155552671", emp_details: "3 years experience" }
       ]
     }, HR_TOKEN);
     

@@ -10,6 +10,7 @@ export default function AdminDashboard() {
     completedCampaigns: 0,
     aiUsage: 0,
     aiCostSaved: 0,
+    aiCost: 0,
     aiSuccessRate: 0
   });
 
@@ -28,8 +29,8 @@ export default function AdminDashboard() {
   const stats = [
     { title: 'Total HR accounts', value: metrics.totalHRs, icon: Users },
     { title: 'Active campaigns', value: metrics.activeCampaigns, icon: Briefcase },
-    { title: 'AI interviews conducted', value: metrics.aiUsage, icon: Bot },
-    { title: 'Estimated cost saved', value: `$${metrics.aiCostSaved}`, icon: TrendingUp },
+    { title: 'Voice minutes consumed', value: metrics.aiUsage, icon: Bot },
+    { title: 'API cost incurred', value: `$${metrics.aiCost}`, icon: TrendingUp },
   ];
 
   return (

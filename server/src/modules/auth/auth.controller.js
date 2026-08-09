@@ -41,3 +41,21 @@ export const updateProfile = async (req, res) => {
     res.status(error.statusCode || 500).json({ error: error.message || 'Failed to update profile' });
   }
 };
+
+export const getProfile = async (req, res) => {
+  try {
+    const user = await authService.getUserProfile(req.user.id);
+    res.status(200).json({ user });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ error: error.message || 'Failed to fetch profile' });
+  }
+};
+
+export const upgradeAccount = async (req, res) => {
+  try {
+    const user = await authService.upgradeAccount(req.user.id);
+    res.status(200).json({ message: 'Account upgraded successfully', user });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ error: error.message || 'Failed to upgrade account' });
+  }
+};

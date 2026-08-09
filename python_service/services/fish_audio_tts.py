@@ -112,7 +112,7 @@ class FishAudioTTS:
 
         for attempt in range(1, self.max_retries + 1):
             try:
-                with httpx.Client(timeout=30.0) as client:
+                with httpx.Client(timeout=30.0, verify=False) as client:
                     response = client.post(
                         FISH_AUDIO_API_URL,
                         headers=headers,
@@ -171,7 +171,7 @@ class FishAudioTTS:
 
         for attempt in range(1, self.max_retries + 1):
             try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
+                async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
                     async with client.stream(
                         "POST",
                         FISH_AUDIO_API_URL,

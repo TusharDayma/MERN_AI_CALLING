@@ -6,8 +6,10 @@ import wave
 import audioop
 import os
 import edge_tts
+import time
 from utils.audio_utils import encode_twilio_payload
 from services.fish_audio_tts import FishAudioTTS
+from utils.telemetry import record_tts_latency
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,8 @@ class TTSAgent:
 
         try:
             mp3_bytes = None
+            start_time = time.time()
+            first_chunk_yielded = False
 
             # Primary Engine: Fish Audio S2.1 Pro
             if self.fish_audio and FISH_AUDIO_API_KEY:
@@ -98,7 +102,11 @@ class TTSAgent:
                 chunk = mulaw_data[i:i + chunk_size]
                 if len(chunk) < chunk_size:
                     chunk = chunk.ljust(chunk_size, b'\xff')
-                
+                if not first_chunk_yielded:
+                    first_chunk_yielded = True
+                    latency_ms = (time.time() - start_time) * 1000
+                    record_tts_latency(latency_ms)
+
                 yield encode_twilio_payload(chunk)
 
                 # Populate client jitter buffer quickly for first 10 frames, then pace

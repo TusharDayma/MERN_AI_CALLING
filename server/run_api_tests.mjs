@@ -5,6 +5,8 @@
  * Usage: node run_api_tests.mjs
  */
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const BASE = "http://localhost:5000";
 let passed = 0, failed = 0, errors = [];
 let HR_TOKEN = "";
@@ -216,9 +218,9 @@ async function testCandidates() {
   const addRes = await req("POST", `/api/hr/campaigns/${CAMPAIGN_ID}/candidates`, {
     candidates: [
       { name: "Test Candidate Alpha", email: "alpha@test.com",
-        contact: "+11234567890", emp_details: "3 years Node.js experience" },
+        contact: "+14155552671", emp_details: "3 years Node.js experience" },
       { name: "Test Candidate Beta",  email: "beta@test.com",
-        contact: "+10987654321", emp_details: "5 years React experience" }
+        contact: "+14155552672", emp_details: "5 years React experience" }
     ]
   }, HR_TOKEN);
   test("Add candidates returns 201",              addRes.status === 201,

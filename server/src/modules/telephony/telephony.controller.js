@@ -84,6 +84,11 @@ export const handleLegWebhook = async (req, res) => {
 
     } else if (type === EXOTEL_LEG_EVENTS.LEG_COMPLETED) {
       console.log(`[Telephony Controller] Leg completed. LegSid=${legSid}, Duration=${data?.duration}s`);
+      
+      const candidateId = data?.metadata?.candidate_id;
+      if (candidateId && data?.duration) {
+        await telephonyService.processCallBilling(candidateId, parseInt(data.duration, 10));
+      }
 
     } else if (type === EXOTEL_LEG_EVENTS.LEG_FAILED) {
       console.error(`[Telephony Controller] Leg failed. LegSid=${legSid}, Reason=${data?.reason}`);

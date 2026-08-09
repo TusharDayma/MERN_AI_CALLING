@@ -124,7 +124,11 @@ export default function Pricing({ onBookDemo }) {
               </ul>
 
               <button
-                onClick={plan.isEnterprise ? onBookDemo : undefined}
+                onClick={() => {
+                  if (plan.isEnterprise || plan.name === 'Pro Team') {
+                    onBookDemo?.();
+                  }
+                }}
                 className={`w-full py-3 text-sm font-semibold rounded-xl transition-all duration-150 ${
                   plan.featured
                     ? 'bg-white text-primary hover:bg-blue-50 shadow-sm'

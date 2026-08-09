@@ -3,15 +3,26 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LogOut, Users, Briefcase, Bell, Settings, User, Bot,
   Activity, FileText, ChevronRight, Menu, X, LayoutDashboard,
+  Calendar, Radio
 } from 'lucide-react';
+
+import api from '../../services/api';
 
 export default function DashboardLayout({ role, children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [userProfile, setUserProfile] = React.useState(null);
+
+  React.useEffect(() => {
+    api.get('/auth/profile')
+      .then(res => setUserProfile(res.data.user))
+      .catch(err => console.error('Failed to fetch profile', err));
+  }, []);
 
   const links = role === 'ADMIN' ? [
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
+    { name: 'System Health', path: '/admin/health', icon: Activity },
     { name: 'HR Users', path: '/admin/users', icon: Users },
     { name: 'Notifications', path: '/admin/notifications', icon: Bell },
     { name: 'Settings', path: '/admin/settings', icon: Settings },
@@ -20,6 +31,7 @@ export default function DashboardLayout({ role, children }) {
     { name: 'Campaigns', path: '/hr/campaigns', icon: Briefcase },
     { name: 'Launch AI', path: '/hr/campaigns/create', icon: Activity },
     { name: 'Rankings', path: '/hr/ranking', icon: Users },
+    { name: 'Voice Studio', path: '/hr/agent-studio', icon: Radio },
     { name: 'Job Roles', path: '/hr/job-roles', icon: FileText },
   ];
 
@@ -134,6 +146,16 @@ export default function DashboardLayout({ role, children }) {
           </div>
 
           <div className="hidden sm:flex items-center gap-4">
+            {userProfile && role === 'HR' && (
+              <div className={`px-3 py-1.5 rounded-lg border text-sm font-semibold flex items-center gap-2 ${
+                userProfile.credits_balance < 20 
+                  ? 'bg-red-500/10 border-red-500/30 text-red-400' 
+                  : 'bg-surface-raised border-border text-text-primary'
+              }`}>
+                <span className="text-primary font-bold">Credits:</span> 
+                {userProfile.credits_balance}
+              </div>
+            )}
             <div className="badge-success">
               <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
               System Operational

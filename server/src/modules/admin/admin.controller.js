@@ -9,12 +9,21 @@ export const getMetrics = async (req, res) => {
   }
 };
 
-export const getHRUsers = async (req, res) => {
+export const getHealth = async (req, res) => {
   try {
-    const users = await adminService.getHRUsers();
+    const healthData = await adminService.getSystemHealth();
+    res.status(200).json(healthData);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch system health' });
+  }
+};
+
+export const getAllUsers = async (req, res) => {
+  try {
+    const users = await adminService.getAllUsers();
     res.status(200).json(users);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch HR users' });
+    res.status(500).json({ error: 'Failed to fetch users' });
   }
 };
 
@@ -24,6 +33,16 @@ export const toggleUserStatus = async (req, res) => {
     res.status(200).json({ message: `User status changed to ${newStatus}` });
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message || 'Failed to update status' });
+  }
+};
+
+export const changeUserRole = async (req, res) => {
+  try {
+    const { role } = req.body;
+    const result = await adminService.changeUserRole(req.params.id, role);
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to update role' });
   }
 };
 
@@ -41,7 +60,11 @@ export const createHRUser = async (req, res) => {
     const user = await adminService.createHRUser(req.body);
     res.status(201).json({ message: 'HR User created', user });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create user' });
+    if (err.code === 'P2002') {
+      const target = err.meta?.target || 'Field';
+      return res.status(400).json({ error: `A user with this ${target} already exists.` });
+    }
+    res.status(500).json({ error: err.message || 'Failed to create user. Please check your inputs.' });
   }
 };
 
@@ -60,5 +83,15 @@ export const resolvePasswordReset = async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message || 'Failed to resolve reset' });
+  }
+};
+
+export const updateUserCredits = async (req, res) => {
+  try {
+    const { credits } = req.body;
+    const user = await adminService.updateUserCredits(req.params.id, credits);
+    res.status(200).json({ message: 'Credits updated successfully', user });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update user credits' });
   }
 };

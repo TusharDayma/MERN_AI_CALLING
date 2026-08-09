@@ -11,8 +11,8 @@
  * It also knows NOTHING about routing — that is the route file's job.
  */
 
-import fetch from 'node-fetch';
 import prisma from '../../../config/db.js';
+import axios from 'axios';
 import { CANDIDATE_STATUS, WHATSAPP_STATUS, CONSENT_STATUS } from '../../config/constants.js';
 import {
   EXOTEL_BASE_URL,
@@ -146,6 +146,34 @@ export const dispatchExotelCall = async (candidateId) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Inbound WhatsApp Reply Handler (Business Logic)
 // ─────────────────────────────────────────────────────────────────────────────
+
+export const processCallBilling = async (candidateId, durationSeconds) => {
+  if (!durationSeconds || durationSeconds <= 0) return;
+
+  const candidate = await prisma.candidate.findUnique({
+    where: { id: candidateId },
+    include: {
+      campaign: {
+        select: { created_by_hr_id: true }
+      }
+    }
+  });
+
+  if (!candidate || !candidate.campaign?.created_by_hr_id) return;
+
+  const minutes = Math.ceil(durationSeconds / 60);
+  const costPerMinute = 0.05;
+  const totalCost = minutes * costPerMinute;
+
+  await prisma.user.update({
+    where: { id: candidate.campaign.created_by_hr_id },
+    data: {
+      total_voice_minutes: { increment: durationSeconds / 60 },
+      credits_balance: { decrement: minutes },
+      api_cost: { increment: totalCost }
+    }
+  });
+};
 
 /**
  * Parses an inbound Exotel WhatsApp message body, updates DB, and triggers

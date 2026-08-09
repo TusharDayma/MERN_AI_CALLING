@@ -10,8 +10,8 @@ The project consists of three distinct microservices running on specific ports:
 
 | Service | Technology | Port | Description |
 | :--- | :--- | :--- | :--- |
-| **Frontend** | React 18 (Vite) | `5173` | Recruiter Dashboard & Campaign Creator. |
-| **Backend** | Node.js (Express) | `5000` | REST API, SQLite database, & WebSocket reverse proxy. |
+| **Frontend** | React 18 (Vite) | `5173` | Recruiter Dashboard, Dossier UI, & PLG Upsell funnels. |
+| **Backend** | Node.js (Express) | `5000` | REST API, SQLite database, WebSocket reverse proxy & PLG credits logic. |
 | **AI Voice Engine** | Python (FastAPI) | `8000` | Handles Exotel audio streams (STT → LLM → TTS). |
 | **Ngrok Tunnel** | Ngrok Client | `5000` | Exposes your backend publicly so Exotel can connect. |
 
@@ -83,6 +83,9 @@ EXOTEL_API_TOKEN="your_exotel_api_token"
 EXOTEL_ACCOUNT_SID="your_exotel_account_sid"
 EXOTEL_CALLER_ID="+910000000000"
 
+# Security Webhook Secret
+INTERNAL_WEBHOOK_SECRET="antitalk-internal-secret-12345"
+
 # Public Webhook URLs (replace with your active Ngrok URL)
 BOT_WEBSOCKET_URL="wss://your-ngrok-domain.ngrok-free.app/media-stream"
 STATUS_CALLBACK_URL="https://your-ngrok-domain.ngrok-free.app/api/telephony/leg/webhook"
@@ -117,6 +120,7 @@ EXOTEL_CHANNELS=1
 
 # Backend Webhook Destination
 EXPRESS_WEBHOOK_URL="http://localhost:5000/api/webhooks/call-completed"
+EXPRESS_WEBHOOK_SECRET="antitalk-internal-secret-12345"
 
 # Fish Audio S2.1 Pro TTS (optional — Edge TTS is the automatic fallback)
 # Get your free key from: https://fish.audio/app/developers/

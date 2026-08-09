@@ -1,7 +1,8 @@
-import fetch from 'node-fetch';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 dotenv.config();
+
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const BASE_URL = 'http://localhost:5000/api';
 

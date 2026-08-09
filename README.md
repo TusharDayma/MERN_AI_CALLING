@@ -7,14 +7,19 @@ AntiTalk is a full-stack, enterprise-grade B2B SaaS platform that allows HR depa
 ### 🛡️ Admin Portal (Superuser Control)
 - **Global Dashboard**: Monitor system-wide metrics including total HR accounts, active AI interviews, average system latency, and estimated cost savings.
 - **HR User Management**: View, manually create, block, unblock, or delete HR user accounts across organizations.
+- **Credit Management**: Manually adjust and allocate voice credits for HR users directly from the dashboard.
 - **Platform Settings**: Configure global application state, including Maintenance Mode, Max Concurrent Exotel streams, and Candidate Data Retention policies.
 - **Support Ticketing**: Dedicated view to handle and resolve password reset requests from HR users.
+
+### 💳 Product-Led Growth (PLG) Billing System
+- **Free Trial & Credits**: New users start with a free trial credit balance. The backend algorithm calculates call durations and deducts credits accordingly.
+- **Automated Upsell Funnel**: Intelligent 402 (Insufficient Credits) error handling blocks campaign launches when credits run low, gracefully triggering an in-app Upsell Upgrade Modal.
 
 ### 👔 HR Portal (Recruiters & Hiring Managers)
 - **Campaign Wizard**: A polished, 4-step interactive flow to launch AI voice campaigns. Includes client-side PapaParse CSV handling to bulk upload hundreds of candidates instantly.
 - **Campaign Management**: A high-level overview table to monitor active, paused, draft, and completed campaigns. Features one-click Start/Pause toggles.
 - **Live Candidate Roster**: Click on any campaign to view a detailed modal displaying real-time AI screening statuses and scores.
-- **Candidate Rankings**: A sortable, searchable data table displaying all candidates who have completed their AI interviews. Features a "Dossier Modal" that renders the raw transcript payload returned by the Python AI engine.
+- **Candidate Rankings**: A sortable, searchable data table displaying all candidates who have completed their AI interviews. Features a beautiful **Interactive DossierViewer** that parses AI evaluations into chat transcripts, strengths, and weaknesses. Includes a **Human-in-the-Loop** manual score override allowing HR to correct the AI.
 - **Job Role Management**: Define and manage re-usable job titles, departments, and descriptions. Supports full create, edit, and delete functionality with safe dependency tracking.
 
 ### 🧠 AntiGravity Python Voice AI Engine
@@ -36,7 +41,7 @@ AntiTalk is a full-stack, enterprise-grade B2B SaaS platform that allows HR depa
 ## 🛠️ Tech Stack
 
 - **Frontend**: React 18 (Vite), Tailwind CSS, Framer Motion, Lucide Icons, Axios.
-- **Backend (Express)**: Node.js, Express.js, Prisma ORM, Exotel API, JWT, bcrypt.
+- **Backend (Express)**: Node.js, Express.js, Prisma ORM, Zod (validation), Exotel API, JWT, bcrypt.
 - **Backend (AI Engine)**: Python 3, FastAPI, Uvicorn, WebSockets, Groq SDK, Fish Audio API, Edge TTS.
 - **Database**: SQLite.
 
@@ -78,6 +83,9 @@ EXOTEL_API_TOKEN="your_exotel_api_token"
 EXOTEL_ACCOUNT_SID="your_exotel_account_sid"
 EXOTEL_CALLER_ID="+910000000000"
 
+# Security
+INTERNAL_WEBHOOK_SECRET="antitalk-internal-secret-12345"
+
 # Public Tunnels (Required for Exotel Webhooks & WS Stream to reach localhost)
 BOT_WEBSOCKET_URL="wss://your-ngrok-domain.ngrok-free.app/media-stream"
 STATUS_CALLBACK_URL="https://your-ngrok-domain.ngrok-free.app/api/telephony/leg/webhook"
@@ -95,6 +103,7 @@ EXOTEL_CHANNELS=1
 
 # Backend Webhook Destination
 EXPRESS_WEBHOOK_URL="http://localhost:5000/api/webhooks/call-completed"
+EXPRESS_WEBHOOK_SECRET="antitalk-internal-secret-12345"
 
 # AI Provider Configuration
 GROQ_API_KEY="your_groq_api_key"

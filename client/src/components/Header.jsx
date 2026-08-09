@@ -22,15 +22,21 @@ export default function Header({ onBookDemo }) {
 
         {/* Nav */}
         <nav className="hidden lg:flex items-center gap-1">
-          {['About', 'Features', 'Workflow', 'Pricing', 'Docs'].map((item) => (
+          {['About', 'Features', 'Workflow', 'Pricing'].map((item) => (
             <a
               key={item}
-              href={`#${item.toLowerCase()}`}
+              href={`/#${item.toLowerCase()}`}
               className="px-3.5 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-raised rounded-lg transition-all duration-150"
             >
               {item}
             </a>
           ))}
+          <Link
+            to="/docs"
+            className="px-3.5 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-raised rounded-lg transition-all duration-150"
+          >
+            Docs
+          </Link>
         </nav>
 
         {/* CTAs */}

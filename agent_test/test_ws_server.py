@@ -4,6 +4,7 @@ import io
 import asyncio
 import json
 import websockets
+import ssl
 
 # Ensure UTF-8 output on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -13,7 +14,8 @@ async def test_websocket_server():
     print(f"[+] Connecting to WebSocket server at {uri}...")
     
     try:
-        async with websockets.connect(uri) as ws:
+        ssl_context = ssl._create_unverified_context() if uri.startswith("wss") else None
+        async with websockets.connect(uri, ssl=ssl_context) as ws:
             print("  [OK] WebSocket connection opened successfully!")
             
             # Send initial start event

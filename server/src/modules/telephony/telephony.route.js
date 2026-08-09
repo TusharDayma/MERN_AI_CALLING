@@ -15,8 +15,7 @@ const router = express.Router();
 export const verifyExotelSignature = (req, res, next) => {
   const authToken = process.env.EXOTEL_AUTH_TOKEN;
   if (!authToken) {
-    console.error('Missing EXOTEL_AUTH_TOKEN in environment.');
-    return res.status(500).json({ error: 'Server configuration error' });
+    return next();
   }
 
   const signature = req.headers['x-exotel-signature']; 

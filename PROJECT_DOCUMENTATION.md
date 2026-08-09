@@ -1,4 +1,4 @@
-﻿# AntiTalk Platform: System Architecture, Data Models & Flow Summary
+# AntiTalk Platform: System Architecture, Data Models & Flow Summary
 
 ## Executive Summary & System Purpose
 
@@ -63,8 +63,8 @@ flowchart TB
 
 | Component | Stack / Technologies | Primary Responsibility |
 | :--- | :--- | :--- |
-| **Frontend** | React 18, Vite, Tailwind CSS, Lucide Icons, Framer Motion | Enterprise UI for Admin & HR management, CSV candidate upload, real-time candidate dossiers |
-| **Backend Core** | Node.js, Express.js, Prisma ORM, SQLite | Auth (JWT), RBAC, campaign orchestration, DB persistence, Exotel call dispatch & webhooks |
+| **Frontend** | React 18, Vite, Tailwind CSS, Lucide Icons, Framer Motion | Enterprise UI for Admin & HR management, CSV candidate upload, interactive AI dossiers, and PLG Upsell Modals |
+| **Backend Core** | Node.js, Express.js, Prisma ORM, SQLite, Zod | Auth (JWT), RBAC, campaign orchestration, DB persistence, Exotel call dispatch & webhooks, call billing (PLG credits logic) & accounting |
 | **AI Voice Service** | Python 3.10+, FastAPI, WebSockets, asyncio | Bi-directional streaming audio processing, VAD, multi-agent evaluation pipeline |
 | **Speech-to-Text (STT)** | `Groq Whisper` | Real-time audio stream transcription |
 | **LLM Brain & Analyst** | `Groq Llama 3` | Conversational interview state machine & post-call dossier generation |
@@ -94,6 +94,9 @@ erDiagram
         String password_hash
         Role role "ADMIN | HR"
         UserStatus status "ACTIVE | DEACTIVATED"
+        Float total_voice_minutes
+        Float credits_balance
+        Float api_cost
         Boolean is_deleted
         DateTime created_at
         DateTime updated_at
@@ -150,7 +153,7 @@ erDiagram
 ### Detailed Entity Descriptions
 
 1. **User Model** (`server/prisma/schema.prisma`)
-   - Stores account credentials, roles (`ADMIN` or `HR`), and soft-deletion flags.
+   - Stores account credentials, roles (`ADMIN` or `HR`), soft-deletion flags, and billing statistics (`total_voice_minutes`, `credits_balance`, `api_cost`).
 2. **PasswordReset Model** (`server/prisma/schema.prisma`)
    - Handles administrative password reset workflows for HR staff.
 3. **JobRole Model** (`server/prisma/schema.prisma`)
@@ -273,9 +276,10 @@ flowchart LR
    - The Python service sends an HTTP `POST` request to `/api/webhooks/call-completed` in Node.js via `python_service/utils/webhook_client.py`.
    - Node updates the Candidate record in SQLite with `status: SCREENED`, `ai_score`, and `dossier_json`.
 
-7. **HR Review & Decisioning**:
+7. **HR Review & Decisioning (Human-in-the-Loop)**:
    - HR views live updating candidate rankings on the React frontend.
-   - Clicking "View Dossier" displays candidate scores, summary metrics, strengths, weaknesses, and complete transcript logs.
+   - Clicking "View Dossier" displays an interactive modal with parsed AI scores, summary metrics, strengths, weaknesses, and a chat-style transcript UI.
+   - HR professionals can manually override the AI score if they identify an error in the AI's judgment, ensuring humans maintain final hiring authority.
 
 ---
 

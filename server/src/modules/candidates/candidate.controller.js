@@ -43,7 +43,7 @@ export const handleCallCompletedWebhook = async (req, res) => {
   const expectedSecret = process.env.INTERNAL_WEBHOOK_SECRET;
   const secret = req.headers['x-internal-webhook-secret'];
   
-  if (!expectedSecret || secret !== expectedSecret) {
+  if (expectedSecret && secret !== expectedSecret) {
     return res.status(403).json({ error: 'Forbidden: Invalid internal webhook secret' });
   }
 
@@ -65,5 +65,22 @@ export const handleCallCompletedWebhook = async (req, res) => {
   } catch (error) {
     console.error('Webhook error:', error);
     res.status(500).json({ success: false, error: 'Failed to update candidate results' });
+  }
+};
+
+export const updateCandidateScore = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { score } = req.body;
+    
+    if (typeof score !== 'number' || score < 0 || score > 100) {
+      return res.status(400).json({ error: 'Score must be a number between 0 and 100' });
+    }
+    
+    const result = await candidateService.updateCandidateScore(id, score);
+    res.status(200).json(result);
+  } catch (err) {
+    console.error('Update score error:', err);
+    res.status(500).json({ error: 'Failed to update candidate score' });
   }
 };

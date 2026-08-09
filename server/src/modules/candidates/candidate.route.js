@@ -12,4 +12,7 @@ router.get('/', verifyToken, requireRole('HR'), candidateController.getCandidate
 // Candidate import route under campaign
 router.post('/campaigns/:id/candidates', verifyToken, requireRole('HR'), candidateController.importCandidates);
 
+// Candidate score override
+router.patch('/:id/score', verifyToken, requireRole('HR'), candidateController.updateCandidateScore);
+
 export default router;
