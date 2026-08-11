@@ -57,9 +57,8 @@ export default function DashboardLayout({ role, children }) {
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+          }`}
         style={{ backgroundColor: '#111827' }}
       >
         {/* Logo */}
@@ -90,11 +89,10 @@ export default function DashboardLayout({ role, children }) {
                 key={link.name}
                 to={link.path}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
-                  isActive
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${isActive
                     ? 'bg-primary text-white'
                     : 'text-slate-400 hover:bg-white/6 hover:text-white'
-                }`}
+                  }`}
               >
                 <Icon className="w-4.5 h-4.5 shrink-0" />
                 {link.name}
@@ -146,16 +144,6 @@ export default function DashboardLayout({ role, children }) {
           </div>
 
           <div className="hidden sm:flex items-center gap-4">
-            {userProfile && role === 'HR' && (
-              <div className={`px-3 py-1.5 rounded-lg border text-sm font-semibold flex items-center gap-2 ${
-                userProfile.credits_balance < 20 
-                  ? 'bg-red-500/10 border-red-500/30 text-red-400' 
-                  : 'bg-surface-raised border-border text-text-primary'
-              }`}>
-                <span className="text-primary font-bold">Credits:</span> 
-                {userProfile.credits_balance}
-              </div>
-            )}
             <div className="badge-success">
               <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
               System Operational

@@ -82,9 +82,10 @@ model PasswordReset {
 model JobRole {
   id          String      @id @default(uuid())
   title       String
-  department  String
-  description String
-  created_by  String
+  department     String
+  description    String
+  scoring_rubric String? // JSON strictly structured as { technical: number, communication: number, culture: number }
+  created_by     String
 
   user        User        @relation(fields: [created_by], references: [id])
   campaigns   Campaign[]
@@ -138,6 +139,8 @@ model Candidate {
   whatsapp_replied_at DateTime?
   consent_status      String?
   fallback_call_at    DateTime?
+  call_attempts       Int             @default(0)
+  last_attempt_at     DateTime?
 
   campaign            Campaign        @relation(fields: [campaign_id], references: [id])
   

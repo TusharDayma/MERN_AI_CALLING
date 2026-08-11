@@ -61,3 +61,9 @@ lerna-debug.log*
 .claude/
 .agents/
 .windsurf/
+
+# Ignore zips and temporary folders
+*.zip
+*.tar.gz
+temp_zip_dir/
+

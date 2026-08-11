@@ -49,4 +49,19 @@ AI_SYSTEM_PROMPT = os.getenv(
     "You are a professional AI Recruiter. Keep responses concise and evaluate candidates technically."
 )
 
-
+# Priority 3 — "Please Repeat" fast-path detection phrases
+REPEAT_PHRASES = [
+    "repeat",
+    "say that again",
+    "didn't hear",
+    "didn't catch",
+    "can you repeat",
+    "pardon",
+    "come again",
+    "once more",
+    "sorry what",
+    "could you say",
+    "what did you say",
+    "say again",
+    "i missed that",
+]

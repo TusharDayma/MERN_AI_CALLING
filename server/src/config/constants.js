@@ -28,3 +28,8 @@ export const CONSENT_STATUS = {
 };
 
 export const WHATSAPP_TIMEOUT_MINUTES = parseInt(process.env.WHATSAPP_TIMEOUT_MINUTES || '15', 10);
+
+// Priority 5 — Calling Hours Guardrail
+export const CALLING_HOURS_START = parseInt(process.env.CALLING_HOURS_START || '9', 10);
+export const CALLING_HOURS_END = parseInt(process.env.CALLING_HOURS_END || '19', 10);
+export const CALLING_TIMEZONE = process.env.CALLING_TIMEZONE || 'Asia/Kolkata';

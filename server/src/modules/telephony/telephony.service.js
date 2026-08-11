@@ -2,18 +2,14 @@
  * telephony.service.js
  * Domain service for Exotel telephony operations.
  *
- * Responsibilities (SRP):
- *   1. sendWhatsAppInvite   — Exotel WhatsApp Template API
- *   2. dispatchExotelCall   — Exotel Legs API (dial the candidate)
- *   3. startAgentStream     — Exotel AgentStream (wire the leg to the Python WS bot)
- *
- * This file knows NOTHING about HTTP req/res — that is the controller's job.
- * It also knows NOTHING about routing — that is the route file's job.
+ * Added in this version:
+ *  - isWithinCallingHours()  — Priority 5 guardrail
+ *  - call_attempts tracking  — Priority 7
+ *  - Socket.IO emit on dispatch — Priority 1
  */
 
 import prisma from '../../../config/db.js';
-import axios from 'axios';
-import { CANDIDATE_STATUS, WHATSAPP_STATUS, CONSENT_STATUS } from '../../config/constants.js';
+import { CANDIDATE_STATUS, WHATSAPP_STATUS, CONSENT_STATUS, CALLING_HOURS_START, CALLING_HOURS_END, CALLING_TIMEZONE } from '../../config/constants.js';
 import {
   EXOTEL_BASE_URL,
   EXOTEL_WHATSAPP_CHANNEL,
@@ -21,16 +17,40 @@ import {
   POSITIVE_REPLIES,
   NEGATIVE_REPLIES
 } from './telephony.constants.js';
+import { getIO } from '../socket/socketManager.js';
 
 // ── Environment Configuration ─────────────────────────────────────────────────
-const EXOTEL_API_KEY     = process.env.EXOTEL_API_KEY;
-const EXOTEL_API_TOKEN   = process.env.EXOTEL_API_TOKEN;
+const EXOTEL_API_KEY = process.env.EXOTEL_API_KEY;
+const EXOTEL_API_TOKEN = process.env.EXOTEL_API_TOKEN;
 const EXOTEL_ACCOUNT_SID = process.env.EXOTEL_ACCOUNT_SID;
-const EXOTEL_CALLER_ID   = process.env.EXOTEL_CALLER_ID;   // Exotel virtual number
-const BOT_WEBSOCKET_URL  = process.env.BOT_WEBSOCKET_URL   || 'wss://your-bot/media-stream';
+const EXOTEL_CALLER_ID = process.env.EXOTEL_CALLER_ID;
+const BOT_WEBSOCKET_URL = process.env.BOT_WEBSOCKET_URL || 'wss://your-bot/media-stream';
 const STATUS_CALLBACK_URL = process.env.STATUS_CALLBACK_URL;
 
 const IS_MOCK = !EXOTEL_API_KEY || !EXOTEL_API_TOKEN || !EXOTEL_ACCOUNT_SID;
+
+/**
+ * Priority 5 — Calling Hours Guardrail
+ * Returns true if current time in CALLING_TIMEZONE is within [START, END) hours.
+ */
+export const isWithinCallingHours = () => {
+  try {
+    const tz = CALLING_TIMEZONE || 'Asia/Kolkata';
+    const start = typeof CALLING_HOURS_START === 'number' ? CALLING_HOURS_START : 9;
+    const end = typeof CALLING_HOURS_END === 'number' ? CALLING_HOURS_END : 19;
+
+    const formatter = new Intl.DateTimeFormat('en-IN', {
+      timeZone: tz,
+      hour: 'numeric',
+      hour12: false
+    });
+    const currentHour = parseInt(formatter.format(new Date()), 10);
+    return currentHour >= start && currentHour < end;
+  } catch (e) {
+    console.error('[Telephony] isWithinCallingHours error:', e.message);
+    return true; // fail open so calls aren't silently blocked
+  }
+};
 
 /**
  * Build the base Exotel API URL for v1.
@@ -39,8 +59,7 @@ const buildExotelV1Url = (path) =>
   `https://api.exotel.com/v1/Accounts/${EXOTEL_ACCOUNT_SID}${path}`;
 
 /**
- * Generic Exotel REST call helper for v1 APIs (expects application/x-www-form-urlencoded)
- * Throws a descriptive error on non-2xx responses.
+ * Generic Exotel REST call helper for v1 APIs.
  */
 const exotelPostV1 = async (path, params) => {
   const url = buildExotelV1Url(path);
@@ -51,8 +70,6 @@ const exotelPostV1 = async (path, params) => {
   }
 
   const authHeader = 'Basic ' + Buffer.from(`${EXOTEL_API_KEY}:${EXOTEL_API_TOKEN}`).toString('base64');
-  
-  // Convert object to URLSearchParams for form-urlencoded
   const body = new URLSearchParams(params).toString();
 
   const response = await fetch(url, {
@@ -73,12 +90,14 @@ const exotelPostV1 = async (path, params) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. Voice — Exotel V1 Calls/connect API
+// Voice — Exotel V1 Calls/connect API
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Initiates an outbound call using the Exotel V1 Calls API.
- * Uses streamurl to connect the call directly to the WebSocket Bot.
+ * Priority 5: Checks calling hours first.
+ * Priority 7: Increments call_attempts + sets last_attempt_at.
+ * Priority 1: Emits candidate:updated via Socket.IO.
  */
 export const dispatchExotelCall = async (candidateId) => {
   const candidate = await prisma.candidate.findUnique({
@@ -90,10 +109,20 @@ export const dispatchExotelCall = async (candidateId) => {
     throw new Error(`Candidate ${candidateId} not found`);
   }
 
-  console.log(`[Telephony Service] Dispatching Exotel voice call to ${candidate.name} (${candidate.contact}) via V1 API...`);
+  // Priority 5 — Calling Hours Guardrail
+  if (!isWithinCallingHours()) {
+    console.log(`[Telephony Service] Outside calling hours — queuing candidate ${candidate.name} for later.`);
+    await prisma.candidate.update({
+      where: { id: candidateId },
+      data: { status: CANDIDATE_STATUS.PENDING }
+    });
+    return { success: false, reason: 'OUTSIDE_CALLING_HOURS' };
+  }
 
-  // Fetch campaign questions to pass as stream metadata
+  console.log(`[Telephony Service] Dispatching Exotel voice call to ${candidate.name} (${candidate.contact})...`);
+
   let questionsParam = '[]';
+  let scoringRubricStr = '{}';
   try {
     const qs = candidate?.campaign?.questions || [];
     if (qs.length > 0) {
@@ -105,19 +134,26 @@ export const dispatchExotelCall = async (candidateId) => {
         }))
       );
     }
+
+    // Support Custom Scoring Rubrics builder feature
+    const rubric = candidate?.campaign?.jobRole?.scoring_rubric;
+    if (rubric) {
+      scoringRubricStr = typeof rubric === 'string' ? rubric : JSON.stringify(rubric);
+    }
   } catch (e) {
     console.error('[Telephony Service] Failed to serialize campaign questions:', e.message);
   }
 
-  // Construct streamurl with query parameters so Python backend can pick them up
-  const streamUrl = `${BOT_WEBSOCKET_URL}?candidateId=${candidateId}&questionsJson=${encodeURIComponent(questionsParam)}`;
+  // Pass configuration to the webhook via query parameters
+  const serverBaseUrl = process.env.PUBLIC_SERVER_URL || 'http://localhost:5000';
+  const exomlUrl = `${serverBaseUrl}/api/webhooks/exotel-answer?candidateId=${candidateId}&questionsJson=${encodeURIComponent(questionsParam)}&scoringRubric=${encodeURIComponent(scoringRubricStr)}`;
 
   const payload = {
     From: EXOTEL_CALLER_ID,
     To: candidate.contact,
     CallerId: EXOTEL_CALLER_ID,
-    streamtype: 'bidirectional',
-    streamurl: streamUrl,
+    Url: exomlUrl,
+    CallType: 'trans'
   };
 
   if (STATUS_CALLBACK_URL) {
@@ -129,22 +165,37 @@ export const dispatchExotelCall = async (candidateId) => {
 
   console.log(`[Telephony Service] Call created. CallSid: ${callSid}`);
 
-  await prisma.candidate.update({
+  // Priority 7 — increment call_attempts and set last_attempt_at
+  const updatedCandidate = await prisma.candidate.update({
     where: { id: candidateId },
     data: {
       status: CANDIDATE_STATUS.VOICE_FALLBACK_DISPATCHED,
       fallback_call_at: new Date(),
+      last_attempt_at: new Date(),
+      call_attempts: { increment: 1 },
       dossier_json: JSON.stringify({ call_sid: callSid })
     }
   });
+
+  // Priority 1 — emit live update to campaign room
+  try {
+    const io = getIO();
+    io.to(`campaign:${updatedCandidate.campaign_id}`).emit('candidate:updated', {
+      candidateId,
+      status: CANDIDATE_STATUS.VOICE_FALLBACK_DISPATCHED,
+      ai_score: updatedCandidate.ai_score,
+      call_attempts: updatedCandidate.call_attempts
+    });
+  } catch (e) {
+    console.warn('[Telephony] Socket.IO emit skipped:', e.message);
+  }
 
   return { success: true, callSid };
 };
 
 
-
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. Inbound WhatsApp Reply Handler (Business Logic)
+// Call Billing
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const processCallBilling = async (candidateId, durationSeconds) => {
@@ -153,9 +204,7 @@ export const processCallBilling = async (candidateId, durationSeconds) => {
   const candidate = await prisma.candidate.findUnique({
     where: { id: candidateId },
     include: {
-      campaign: {
-        select: { created_by_hr_id: true }
-      }
+      campaign: { select: { created_by_hr_id: true } }
     }
   });
 
@@ -212,7 +261,6 @@ export const handleInboundWhatsAppReply = async ({ from, messageBody }) => {
       }
     });
 
-    // Trigger Exotel voice call immediately
     await dispatchExotelCall(candidate.id);
     return { success: true, action: 'VOICE_CALL_DISPATCHED' };
 

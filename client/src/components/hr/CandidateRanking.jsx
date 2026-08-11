@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '../layout/DashboardLayout';
 import api from '../../services/api';
 import { Search, FileText, X, ChevronDown, Award, Activity, Users } from 'lucide-react';
@@ -6,20 +7,48 @@ import DOMPurify from 'dompurify';
 
 export default function CandidateRanking() {
   const [candidates, setCandidates] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('date_desc');
   const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
+  // Priority 2 — Campaign filter (read initial value from URL param)
+  const [campaignId, setCampaignId] = useState(searchParams.get('campaignId') || '');
+
+  // Fetch campaign list for filter dropdown
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await api.get('/hr/campaigns');
+        setCampaigns(res.data || []);
+      } catch (err) {
+        console.error('Failed to load campaigns for filter', err);
+      }
+    };
+    load();
+  }, []);
+
+  // Fetch candidates whenever search/sort/campaign filter changes (debounced 300ms)
   useEffect(() => {
     const fetchCandidates = async () => {
       try {
-        const res = await api.get(`/hr/candidates?search=${search}&sortBy=${sortBy}`);
+        const params = new URLSearchParams({ search, sortBy });
+        if (campaignId) params.set('campaignId', campaignId);
+        const res = await api.get(`/hr/candidates?${params.toString()}`);
         setCandidates(res.data);
       } catch (err) { console.error(err); }
     };
     const timer = setTimeout(() => fetchCandidates(), 300);
     return () => clearTimeout(timer);
-  }, [search, sortBy]);
+  }, [search, sortBy, campaignId]);
+
+  // Sync campaignId filter to URL
+  const handleCampaignFilter = (val) => {
+    setCampaignId(val);
+    if (val) setSearchParams({ campaignId: val });
+    else setSearchParams({});
+  };
 
   const scoreColor = (score) => {
     if (!score) return 'text-text-muted';
@@ -45,9 +74,24 @@ export default function CandidateRanking() {
             <p className="text-sm text-text-secondary mt-1">Review AI scores and detailed technical transcripts.</p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto flex-wrap">
+            {/* Priority 2 — Campaign filter */}
+            <div className="relative">
+              <select
+                value={campaignId}
+                onChange={(e) => handleCampaignFilter(e.target.value)}
+                className="w-full sm:w-52 appearance-none pl-4 pr-9 cursor-pointer"
+              >
+                <option value="">All Campaigns</option>
+                {campaigns.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
+            </div>
+
             {/* Search */}
-            <div className="relative w-full sm:w-64">
+            <div className="relative w-full sm:w-56">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
               <input
                 type="text"
@@ -57,12 +101,13 @@ export default function CandidateRanking() {
                 className="w-full pl-9 pr-4"
               />
             </div>
+
             {/* Sort */}
             <div className="relative">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full sm:w-48 appearance-none pl-4 pr-9 cursor-pointer"
+                className="w-full sm:w-44 appearance-none pl-4 pr-9 cursor-pointer"
               >
                 <option value="date_desc">Newest First</option>
                 <option value="score_high">Highest AI Score</option>
@@ -81,6 +126,7 @@ export default function CandidateRanking() {
                   <th>Candidate Profile</th>
                   <th>Campaign</th>
                   <th>Status</th>
+                  <th>Attempts</th>
                   <th>AI Score</th>
                   <th className="text-right pr-5">Actions</th>
                 </tr>
@@ -115,11 +161,12 @@ export default function CandidateRanking() {
                       <td>
                         <span className={
                           c.status === 'COMPLETED' ? 'badge-success' :
-                          c.status === 'SCREENED' ? 'badge-primary' : 'badge-warning'
+                            c.status === 'SCREENED' ? 'badge-primary' : 'badge-warning'
                         }>
                           {c.status}
                         </span>
                       </td>
+                      <td className="text-sm text-text-secondary font-medium pl-4">{c.call_attempts || 0}</td>
                       <td>
                         {c.ai_score ? (
                           <div className="flex items-center gap-2.5">
@@ -199,7 +246,7 @@ export default function CandidateRanking() {
                   <div className="mt-4">
                     <span className={
                       selectedCandidate.status === 'COMPLETED' ? 'badge-success' :
-                      selectedCandidate.status === 'SCREENED' ? 'badge-primary' : 'badge-warning'
+                        selectedCandidate.status === 'SCREENED' ? 'badge-primary' : 'badge-warning'
                     }>
                       {selectedCandidate.status}
                     </span>
@@ -215,8 +262,8 @@ export default function CandidateRanking() {
                 </h3>
                 <div className="bg-[#0F172A] border border-border rounded-xl p-5 font-mono text-[13px] text-slate-300 h-72 overflow-y-auto whitespace-pre-wrap leading-relaxed">
                   {selectedCandidate.dossier_json ? (
-                    <span dangerouslySetInnerHTML={{ 
-                      __html: DOMPurify.sanitize(JSON.stringify(selectedCandidate.dossier_json, null, 2)) 
+                    <span dangerouslySetInnerHTML={{
+                      __html: DOMPurify.sanitize(JSON.stringify(selectedCandidate.dossier_json, null, 2))
                     }} />
                   ) : (
                     <div className="flex h-full items-center justify-center flex-col text-slate-500">

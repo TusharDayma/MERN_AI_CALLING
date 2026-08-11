@@ -24,6 +24,7 @@
     "jsonwebtoken": "^9.0.3",
     "libphonenumber-js": "^1.13.10",
     "node-fetch": "^3.3.2",
+    "socket.io": "^4.8.3",
     "twilio": "^6.0.2",
     "zod": "^4.4.3"
   },

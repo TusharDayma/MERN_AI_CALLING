@@ -22,6 +22,7 @@ router.patch('/:id/status', campaignController.updateCampaignStatus);
 router.post('/:id/questions', campaignController.addQuestions);
 router.post('/:id/launch', campaignController.launchCampaign);
 router.post('/:id/candidates', importCandidates);
+router.get('/:id/export', campaignController.exportCampaignCSV);
 router.delete('/:id', campaignController.deleteCampaign);
 
 export default router;

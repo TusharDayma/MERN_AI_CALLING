@@ -5,6 +5,8 @@ import http from 'http';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { Server as SocketIOServer } from 'socket.io';
+import jwt from 'jsonwebtoken';
 
 dotenv.config();
 
@@ -17,6 +19,8 @@ import candidateRoutes from './src/modules/candidates/candidate.route.js';
 import telephonyRoutes from './src/modules/telephony/telephony.route.js';
 import twilioRoutes from './src/modules/twilio/twilio.route.js';
 import webhookRoutes from './src/modules/webhooks/webhook.route.js';
+import { initIO } from './src/modules/socket/socketManager.js';
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -77,8 +81,43 @@ server.on('upgrade', (req, socket, head) => {
   }
 });
 
+// ─── Socket.IO — Live Campaign Updates ──────────────────────────────────────
+const io = new SocketIOServer(server, {
+  cors: { origin: '*', methods: ['GET', 'POST'] }
+});
+
+// JWT authentication middleware for Socket.IO
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Authentication error: no token'));
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'super-secret-jwt-key-change-me-in-production'
+    );
+    socket.user = decoded;
+    next();
+  } catch {
+    next(new Error('Authentication error: invalid token'));
+  }
+});
+
+io.on('connection', (socket) => {
+  // Clients join a campaign-scoped room to receive live updates
+  socket.on('join:campaign', (campaignId) => {
+    if (campaignId) socket.join(`campaign:${campaignId}`);
+  });
+  socket.on('leave:campaign', (campaignId) => {
+    if (campaignId) socket.leave(`campaign:${campaignId}`);
+  });
+});
+
+// Expose io globally via singleton (no req needed)
+initIO(io);
+
 // Start Server
 server.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
   console.log(`WebSocket /media-stream proxy active -> ws://127.0.0.1:8000`);
+  console.log(`Socket.IO live updates active on port ${PORT}`);
 });

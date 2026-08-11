@@ -4,15 +4,15 @@ import DashboardLayout from '../layout/DashboardLayout';
 import api from '../../services/api';
 import Papa from 'papaparse';
 import LocationSelector from '../shared/LocationSelector';
-import { 
-  Upload, 
-  ChevronRight, 
-  CheckCircle2, 
-  UserPlus, 
-  Trash2, 
-  FileSpreadsheet, 
-  Plus, 
-  AlertCircle, 
+import {
+  Upload,
+  ChevronRight,
+  CheckCircle2,
+  UserPlus,
+  Trash2,
+  FileSpreadsheet,
+  Plus,
+  AlertCircle,
   X,
   Search,
   Sparkles,
@@ -24,26 +24,26 @@ import {
 
 // ── Pre-Screening Question Templates ─────────────────────────────────────────
 const PRESCREEN_TEMPLATES = [
-  { icon: '👤', label: 'Introduction',   category: 'Communication',  text: 'Could you briefly tell me about yourself and your current role?',           key_criteria: 'Should mention current role, years of experience, and key skills.' },
-  { icon: '💰', label: 'Current CTC',    category: 'Compensation',   text: 'What is your current CTC or annual package?',                               key_criteria: 'Should mention a specific amount or range in LPA or per year.' },
-  { icon: '💸', label: 'Expected CTC',   category: 'Compensation',   text: 'What is your expected CTC for this new role?',                              key_criteria: 'Should mention expected salary or range.' },
-  { icon: '📅', label: 'Notice Period',  category: 'Availability',   text: 'What is your current notice period?',                                       key_criteria: 'Should state number of days, weeks, or say immediate joiner.' },
-  { icon: '📍', label: 'Relocation',     category: 'Availability',   text: 'Are you open to relocation if this role requires it?',                      key_criteria: 'Yes or No, with preferred location or any constraints.' },
-  { icon: '🏠', label: 'Work Mode',      category: 'Availability',   text: 'What is your preferred work mode — remote, hybrid, or on-site?',            key_criteria: 'Should clearly state their preference.' },
-  { icon: '📆', label: 'Experience',     category: 'Pre-Screening',  text: 'How many years of total professional experience do you have?',              key_criteria: 'Should mention a specific number of years.' },
-  { icon: '🗺️', label: 'Current City',   category: 'Pre-Screening',  text: 'What is your current city of residence?',                                   key_criteria: 'Should mention city and state or country.' },
-  { icon: '🕐', label: 'Joining Date',   category: 'Availability',   text: 'If selected, when would you be available to join?',                         key_criteria: 'Should state a specific date or timeframe.' },
-  { icon: '🎓', label: 'Qualification',  category: 'Pre-Screening',  text: 'What is your highest educational qualification?',                           key_criteria: 'Should mention degree, field of study, and institution.' },
-  { icon: '🌐', label: 'Languages',      category: 'Communication',  text: 'Which languages are you comfortable working in professionally?',            key_criteria: 'Should mention languages and confidence level.' },
-  { icon: '📊', label: 'Interview Stage',category: 'Pre-Screening',  text: 'Are you currently appearing for interviews with any other companies?',      key_criteria: 'Yes or No, with approximate stage if yes.' },
+  { icon: '👤', label: 'Introduction', category: 'Communication', text: 'Could you briefly tell me about yourself and your current role?', key_criteria: 'Should mention current role, years of experience, and key skills.' },
+  { icon: '💰', label: 'Current CTC', category: 'Compensation', text: 'What is your current CTC or annual package?', key_criteria: 'Should mention a specific amount or range in LPA or per year.' },
+  { icon: '💸', label: 'Expected CTC', category: 'Compensation', text: 'What is your expected CTC for this new role?', key_criteria: 'Should mention expected salary or range.' },
+  { icon: '📅', label: 'Notice Period', category: 'Availability', text: 'What is your current notice period?', key_criteria: 'Should state number of days, weeks, or say immediate joiner.' },
+  { icon: '📍', label: 'Relocation', category: 'Availability', text: 'Are you open to relocation if this role requires it?', key_criteria: 'Yes or No, with preferred location or any constraints.' },
+  { icon: '🏠', label: 'Work Mode', category: 'Availability', text: 'What is your preferred work mode — remote, hybrid, or on-site?', key_criteria: 'Should clearly state their preference.' },
+  { icon: '📆', label: 'Experience', category: 'Pre-Screening', text: 'How many years of total professional experience do you have?', key_criteria: 'Should mention a specific number of years.' },
+  { icon: '🗺️', label: 'Current City', category: 'Pre-Screening', text: 'What is your current city of residence?', key_criteria: 'Should mention city and state or country.' },
+  { icon: '🕐', label: 'Joining Date', category: 'Availability', text: 'If selected, when would you be available to join?', key_criteria: 'Should state a specific date or timeframe.' },
+  { icon: '🎓', label: 'Qualification', category: 'Pre-Screening', text: 'What is your highest educational qualification?', key_criteria: 'Should mention degree, field of study, and institution.' },
+  { icon: '🌐', label: 'Languages', category: 'Communication', text: 'Which languages are you comfortable working in professionally?', key_criteria: 'Should mention languages and confidence level.' },
+  { icon: '📊', label: 'Interview Stage', category: 'Pre-Screening', text: 'Are you currently appearing for interviews with any other companies?', key_criteria: 'Yes or No, with approximate stage if yes.' },
 ];
 
 const CATEGORY_COLORS = {
   'Pre-Screening': 'badge-primary',
-  'Compensation':  'badge-success',
-  'Availability':  'badge-warning',
+  'Compensation': 'badge-success',
+  'Availability': 'badge-warning',
   'Communication': 'bg-amber-100 text-amber-700 border border-amber-200',
-  'Other':         'badge-muted',
+  'Other': 'badge-muted',
 };
 
 const newQuestion = () => ({
@@ -69,7 +69,7 @@ export default function CreateCampaignWizard() {
   const [candidates, setCandidates] = useState([]);
   const [inputMode, setInputMode] = useState('manual');
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Manual Candidate Form State
   const [manualName, setManualName] = useState('');
   const [manualEmail, setManualEmail] = useState('');
@@ -105,7 +105,7 @@ export default function CreateCampaignWizard() {
     let cleaned = String(phoneStr || '').replace(/[^\d+]/g, '');
     if (!cleaned) return '';
     if (!cleaned.startsWith('+')) {
-      if (cleaned.length === 10) cleaned = `+1${cleaned}`;
+      if (cleaned.length === 10) cleaned = `+91${cleaned}`;
       else cleaned = `+${cleaned}`;
     }
     return cleaned;
@@ -152,8 +152,8 @@ export default function CreateCampaignWizard() {
       }
       return '';
     };
-    const nameVal    = sanitizeInput(raw.name ? String(raw.name) : getVal(['name', 'full name', 'fullname', 'candidate name', 'candidate']));
-    const emailVal   = sanitizeInput(raw.email ? String(raw.email).toLowerCase() : getVal(['email', 'e-mail', 'email address']).toLowerCase());
+    const nameVal = sanitizeInput(raw.name ? String(raw.name) : getVal(['name', 'full name', 'fullname', 'candidate name', 'candidate']));
+    const emailVal = sanitizeInput(raw.email ? String(raw.email).toLowerCase() : getVal(['email', 'e-mail', 'email address']).toLowerCase());
     const contactVal = normalizePhone(raw.contact ? String(raw.contact) : getVal(['contact', 'phone', 'mobile', 'phone number', 'contact number']));
     const empDetailsVal = sanitizeInput(raw.emp_details ? String(raw.emp_details) : getVal(['emp_details', 'emp details', 'details', 'experience', 'role details']));
     return {
@@ -184,7 +184,7 @@ export default function CreateCampaignWizard() {
         const parsed = results.data
           .map(row => cleanAndNormalizeCandidate(row, 'CSV'))
           .filter(c => c.name.length >= 2 && isValidPhone(c.contact) && isValidEmail(c.email));
-        
+
         if (parsed.length === 0) {
           const msg = 'No valid candidates found in CSV. Please ensure names, valid emails, and full phone numbers (10+ digits) are provided.';
           setError(msg);
@@ -288,7 +288,11 @@ export default function CreateCampaignWizard() {
       navigate('/hr');
     } catch (err) {
       console.error('[CreateCampaignWizard] Failed to launch campaign:', err);
-      setError(err.response?.data?.error || 'Failed to launch campaign. Please check input parameters.');
+      let errMsg = err.response?.data?.error || 'Failed to launch campaign. Please check input parameters.';
+      if (err.response?.data?.details && Array.isArray(err.response.data.details)) {
+        errMsg += ': ' + err.response.data.details.join(', ');
+      }
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -312,10 +316,23 @@ export default function CreateCampaignWizard() {
             </h1>
             <p className="text-text-secondary text-sm mt-1">Configure job metadata, candidate roster, and AI screening questions.</p>
           </div>
-          <div className="flex gap-2">
-            {[1, 2, 3, 4].map(s => (
-              <div key={s} className={`h-2.5 w-12 rounded-full transition-all ${s <= step ? 'bg-primary' : 'bg-border'}`} />
-            ))}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {['Metadata', 'Candidates', 'Questions', 'Launch'].map((label, idx) => {
+              const s = idx + 1;
+              const isActive = s === step;
+              const isPast = s < step;
+              return (
+                <div key={s} className="flex items-center gap-1.5">
+                  <div className={`flex flex-col items-center justify-center transition-all ${isActive ? 'opacity-100' : isPast ? 'opacity-70' : 'opacity-40'}`}>
+                    <div className={`text-[10px] font-bold mb-1 uppercase tracking-wider whitespace-nowrap ${isActive ? 'text-primary' : 'text-text-muted'}`}>
+                      {label}
+                    </div>
+                    <div className={`h-1.5 w-16 sm:w-20 rounded-full transition-all ${s <= step ? 'bg-primary' : 'bg-border'}`} />
+                  </div>
+                  {s < 4 && <div className="text-border mt-3 mx-0.5"><ChevronRight className="w-3 h-3" /></div>}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -386,15 +403,15 @@ export default function CreateCampaignWizard() {
                     <UserPlus className="w-4 h-4 text-primary" /> Add New Candidate
                   </h3>
                   {manualFormError && (
-                     <div className="p-3 bg-danger-bg border border-danger/20 rounded-lg text-danger text-xs font-medium flex items-center gap-2">
+                    <div className="p-3 bg-danger-bg border border-danger/20 rounded-lg text-danger text-xs font-medium flex items-center gap-2">
                       <AlertCircle className="w-4 h-4" />{manualFormError}
                     </div>
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {[['Full Name *', 'text', manualName, setManualName, 'e.g. Sarah Jenkins'],
-                      ['Email Address', 'email', manualEmail, setManualEmail, 'e.g. sarah@example.com'],
-                      ['Phone / Contact *', 'text', manualContact, setManualContact, 'e.g. +1234567890'],
-                      ['Employment / Role Details', 'text', manualEmpDetails, setManualEmpDetails, 'e.g. 5 yrs React, Node.js, AWS']
+                    ['Email Address', 'email', manualEmail, setManualEmail, 'e.g. sarah@example.com'],
+                    ['Phone / Contact *', 'text', manualContact, setManualContact, 'e.g. +1234567890'],
+                    ['Employment / Role Details', 'text', manualEmpDetails, setManualEmpDetails, 'e.g. 5 yrs React, Node.js, AWS']
                     ].map(([label, type, val, setter, ph]) => (
                       <div key={label}>
                         <label className="block text-xs font-semibold text-text-secondary mb-1">{label}</label>
@@ -526,11 +543,10 @@ export default function CreateCampaignWizard() {
                           type="button"
                           disabled={alreadyAdded}
                           onClick={() => insertTemplate(tpl)}
-                          className={`group flex flex-col items-start gap-1.5 p-3 rounded-xl border text-left transition-all ${
-                            alreadyAdded
-                              ? 'border-border bg-surface opacity-50 cursor-not-allowed'
-                              : 'border-border bg-surface hover:border-primary/40 hover:shadow-md cursor-pointer'
-                          }`}
+                          className={`group flex flex-col items-start gap-1.5 p-3 rounded-xl border text-left transition-all ${alreadyAdded
+                            ? 'border-border bg-surface opacity-50 cursor-not-allowed'
+                            : 'border-border bg-surface hover:border-primary/40 hover:shadow-md cursor-pointer'
+                            }`}
                         >
                           <span className="text-base leading-none">{tpl.icon}</span>
                           <span className="text-xs font-bold text-text-primary">{tpl.label}</span>
@@ -632,8 +648,8 @@ export default function CreateCampaignWizard() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
                 {[['Campaign Name', name, 'text-text-primary'],
-                  ['Target Location', location || 'Global Remote', 'text-text-primary'],
-                  ['Total Candidates', `${candidates.length} candidates`, 'text-success']
+                ['Target Location', location || 'Global Remote', 'text-text-primary'],
+                ['Total Candidates', `${candidates.length} candidates`, 'text-success']
                 ].map(([label, val, cls]) => (
                   <div key={label} className="p-4 bg-surface-raised border border-border rounded-xl">
                     <p className="text-xs font-bold text-text-muted uppercase tracking-wider">{label}</p>

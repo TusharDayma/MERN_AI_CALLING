@@ -1,4 +1,4 @@
-from config import USE_MOCK_AGENTS, GROQ_API_KEY, GROQ_LLM_MODEL
+from config import USE_MOCK_AGENTS, GROQ_API_KEY, GROQ_LLM_MODEL, REPEAT_PHRASES
 import asyncio
 import logging
 import json
@@ -71,6 +71,9 @@ class LLMAgent:
         self.fluency_scores = []
         self.off_topic_flags = []
 
+        # Priority 3 — tracks the last spoken AI message for repeat fast-path
+        self.last_ai_message = ""
+
     def _get_client(self):
         """Returns cached Groq client."""
         if self.is_mock:
@@ -83,6 +86,11 @@ class LLMAgent:
             except Exception as e:
                 logger.error(f"[LLM Agent] Failed to initialize AsyncGroq: {e}")
         return LLMAgent._groq_client
+
+    def is_repeat_request(self, transcript: str) -> bool:
+        """Priority 3 — Returns True if the candidate is asking to hear the last message again."""
+        normalized = transcript.lower().strip()
+        return any(phrase in normalized for phrase in REPEAT_PHRASES)
 
     def get_initial_greeting(self) -> str:
         """Generates initial greeting depending on channel and schedule state."""
@@ -110,6 +118,7 @@ class LLMAgent:
             self.candidate_status = "PENDING"
 
         self.conversation_history.append({"role": "assistant", "content": greeting})
+        self.last_ai_message = greeting
         return greeting
 
     def _generate_smart_response(self, user_text: str = "") -> str:
@@ -223,6 +232,7 @@ class LLMAgent:
             reply = self._generate_smart_response(user_text)
             self.fluency_scores.append(4)
             self.conversation_history.append({"role": "assistant", "content": reply})
+            self.last_ai_message = reply
             return reply
 
         # Build lean system prompt
@@ -338,6 +348,7 @@ class LLMAgent:
                         self.candidate_status = "COMPLETED"
 
                 self.conversation_history.append({"role": "assistant", "content": reply})
+                self.last_ai_message = reply
                 return reply
 
             except Exception as e:
@@ -347,4 +358,5 @@ class LLMAgent:
         reply = self._generate_smart_response(user_text)
         self.fluency_scores.append(3)
         self.conversation_history.append({"role": "assistant", "content": reply})
+        self.last_ai_message = reply
         return reply

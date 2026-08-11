@@ -14,24 +14,37 @@ export const importCandidates = async (campaignId, candidatesList) => {
   return { message: `${created.count} candidates imported successfully.`, count: created.count };
 };
 
-export const getCandidateRankings = async (hrId) => {
+export const getCandidateRankings = async (hrId, filters = {}) => {
+  const { campaignId, search, sortBy } = filters;
+
+  const where = {
+    status: { in: ['COMPLETED', 'SCREENED', 'INTEREST_DECLINED'] },
+    campaign: { created_by_hr_id: hrId }
+  };
+
+  if (campaignId) {
+    where.campaign_id = campaignId;
+  }
+
+  if (search) {
+    where.OR = [
+      { name: { contains: search } },
+      { email: { contains: search } }
+    ];
+  }
+
+  const orderBy = sortBy === 'score_high'
+    ? { ai_score: 'desc' }
+    : { campaign: { created_at: 'desc' } };
+
   const candidates = await prisma.candidate.findMany({
-    where: {
-      status: { in: ['COMPLETED', 'SCREENED', 'INTEREST_DECLINED'] },
-      campaign: {
-        created_by_hr_id: hrId
-      }
-    },
+    where,
     include: {
       campaign: {
-        include: {
-          jobRole: true
-        }
+        include: { jobRole: true }
       }
     },
-    orderBy: {
-      ai_score: 'desc'
-    }
+    orderBy
   });
 
   return candidates.map(c => {
@@ -43,18 +56,14 @@ export const getCandidateRankings = async (hrId) => {
         console.error('[Candidate Service] Failed to parse dossier JSON', e);
       }
     }
-    return {
-      ...c,
-      dossier_json: dossier
-    };
+    return { ...c, dossier_json: dossier };
   });
 };
 
 export const updateCandidateResults = async (candidateId, { ai_score, dossier_json, status }) => {
-  // Check if candidate exists first — test sessions (e.g. BROWSER_TEST) won't have a DB record
   const existing = await prisma.candidate.findUnique({ where: { id: candidateId } });
   if (!existing) {
-    console.warn(`[Candidate Service] Candidate '${candidateId}' not found in DB — skipping result update (likely a test session).`);
+    console.warn(`[Candidate Service] Candidate '${candidateId}' not found — skipping update (likely a test session).`);
     return null;
   }
 

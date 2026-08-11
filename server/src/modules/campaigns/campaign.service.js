@@ -8,7 +8,31 @@ export const getHRMetrics = async (hrId) => {
     where: { campaign: { created_by_hr_id: hrId }, status: { in: ['SCREENED', 'COMPLETED'] } }
   });
 
-  return { totalCampaigns, activeCampaigns, screenedCandidates };
+  // Priority 6 — Analytics: status counts, avg score, score buckets
+  const allCandidates = await prisma.candidate.findMany({
+    where: { campaign: { created_by_hr_id: hrId } },
+    select: { status: true, ai_score: true }
+  });
+
+  const statusCounts = {};
+  let scoreSum = 0;
+  let scoreCount = 0;
+  const scoreBuckets = { low: 0, mid: 0, high: 0 }; // 0-40 / 40-70 / 70-100
+
+  for (const c of allCandidates) {
+    statusCounts[c.status] = (statusCounts[c.status] || 0) + 1;
+    if (c.ai_score !== null && c.ai_score !== undefined) {
+      scoreSum += c.ai_score;
+      scoreCount++;
+      if (c.ai_score < 40) scoreBuckets.low++;
+      else if (c.ai_score < 70) scoreBuckets.mid++;
+      else scoreBuckets.high++;
+    }
+  }
+
+  const avgScore = scoreCount > 0 ? Math.round(scoreSum / scoreCount) : 0;
+
+  return { totalCampaigns, activeCampaigns, screenedCandidates, statusCounts, avgScore, scoreBuckets };
 };
 
 export const getJobRoles = async () => {
@@ -17,12 +41,22 @@ export const getJobRoles = async () => {
   });
 };
 
-export const createJobRole = async (userId, { title, department, description }) => {
+export const createJobRole = async (userId, { title, department, description, scoring_rubric }) => {
+  const existing = await prisma.jobRole.findFirst({
+    where: { title, department }
+  });
+  if (existing) {
+    const error = new Error('A job role with this title and department already exists. Please edit it instead.');
+    error.statusCode = 409;
+    throw error;
+  }
+
   return await prisma.jobRole.create({
     data: {
       title,
       department,
       description,
+      scoring_rubric: scoring_rubric ? JSON.stringify(scoring_rubric) : null,
       created_by: userId
     }
   });
@@ -46,6 +80,15 @@ export const deleteJobRole = async (roleId) => {
 };
 
 export const createCampaign = async (hrId, { name, location, job_role_id }) => {
+  const existing = await prisma.campaign.findFirst({
+    where: { name, created_by_hr_id: hrId }
+  });
+  if (existing) {
+    const error = new Error('A campaign with this name already exists.');
+    error.statusCode = 409;
+    throw error;
+  }
+
   return await prisma.campaign.create({
     data: {
       name,
@@ -57,7 +100,7 @@ export const createCampaign = async (hrId, { name, location, job_role_id }) => {
 };
 
 export const getCampaignsByHR = async (hrId) => {
-  return await prisma.campaign.findMany({
+  const campaigns = await prisma.campaign.findMany({
     where: { created_by_hr_id: hrId },
     include: {
       jobRole: true,
@@ -67,6 +110,23 @@ export const getCampaignsByHR = async (hrId) => {
     },
     orderBy: { created_at: 'desc' }
   });
+
+  const campaignIds = campaigns.map(c => c.id);
+  if (campaignIds.length === 0) return campaigns;
+
+  const aggregateCounts = await prisma.candidate.groupBy({
+    by: ['campaign_id'],
+    where: { campaign_id: { in: campaignIds }, status: 'COMPLETED' },
+    _count: { campaign_id: true }
+  });
+
+  const completedMap = {};
+  aggregateCounts.forEach(c => completedMap[c.campaign_id] = c._count.campaign_id);
+
+  return campaigns.map(c => ({
+    ...c,
+    completed_candidates: completedMap[c.id] || 0
+  }));
 };
 
 export const getCampaignById = async (hrId, campaignId) => {
@@ -182,7 +242,6 @@ export const deleteCampaign = async (hrId, campaignId) => {
     throw error;
   }
 
-  // Transaction ensures we delete child records first to avoid foreign key constraint failures
   await prisma.$transaction([
     prisma.question.deleteMany({ where: { campaign_id: campaignId } }),
     prisma.candidate.deleteMany({ where: { campaign_id: campaignId } }),
@@ -190,4 +249,39 @@ export const deleteCampaign = async (hrId, campaignId) => {
   ]);
 
   return { message: 'Campaign deleted successfully' };
+};
+
+// Priority 4 — CSV Export Data
+export const exportCampaignData = async (hrId, campaignId) => {
+  const campaign = await prisma.campaign.findFirst({
+    where: { id: campaignId, created_by_hr_id: hrId },
+    include: {
+      candidates: {
+        orderBy: { ai_score: 'desc' }
+      }
+    }
+  });
+
+  if (!campaign) {
+    const error = new Error('Campaign not found or access denied');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const rows = campaign.candidates.map(c => {
+    let summary = '';
+    let strengths = '';
+    let weaknesses = '';
+    if (c.dossier_json) {
+      try {
+        const d = typeof c.dossier_json === 'string' ? JSON.parse(c.dossier_json) : c.dossier_json;
+        summary = d.summary || d.overall_summary || '';
+        strengths = Array.isArray(d.strengths) ? d.strengths.join('; ') : (d.strengths || '');
+        weaknesses = Array.isArray(d.weaknesses) ? d.weaknesses.join('; ') : (d.weaknesses || '');
+      } catch { }
+    }
+    return { name: c.name, email: c.email, contact: c.contact, status: c.status, ai_score: c.ai_score, summary, strengths, weaknesses };
+  });
+
+  return { rows, campaignName: campaign.name };
 };

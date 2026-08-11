@@ -94,7 +94,17 @@ class AudioStreamManager:
 
         logger.info(f"[Orchestrator] Candidate said: '{text}'")
         await self.send_log(f"You said: '{text}'")
-        
+
+        # Priority 3 — 'Please repeat' fast-path: re-send last AI message, no LLM call
+        if self.llm.is_repeat_request(text):
+            last_msg = self.llm.last_ai_message
+            if last_msg:
+                logger.info("[Orchestrator] Repeat intent detected — re-sending last AI message.")
+                await self.send_log("Repeat request detected — replaying last question.")
+                self.cancel_tts()
+                self.tts_task = asyncio.create_task(self.run_tts_wrapper(last_msg))
+                return
+
         ai_reply = await self.llm.generate_response(text)
         logger.info(f"[Orchestrator] AI response: '{ai_reply}'")
 
@@ -196,16 +206,26 @@ async def handle_interview_stream(websocket: WebSocket):
                     "false"
                 )
                 is_scheduled_flag = str(is_scheduled_str).lower() == "true"
+                scoring_rubric_str = (
+                    websocket.query_params.get("scoring_rubric") or 
+                    custom_params.get("scoring_rubric") or
+                    "{}"
+                )
 
                 try:
                     questions_raw = json.loads(questions_json)
                 except Exception:
                     questions_raw = []
+                    
+                try:
+                    scoring_rubric = json.loads(scoring_rubric_str)
+                except Exception:
+                    scoring_rubric = {}
 
                 questions = [q.get("text", "") for q in questions_raw if q.get("text")]
                 key_criteria = [q.get("key_criteria", "") for q in questions_raw if q.get("text")]
 
-                logger.info(f"[Orchestrator] Stream started. CandidateID={candidate_id}, Questions={len(questions)}, Scheduled={is_scheduled_flag}")
+                logger.info(f"[Orchestrator] Stream started. CandidateID={candidate_id}, Questions={len(questions)}, Scheduled={is_scheduled_flag}, Rubric={scoring_rubric}")
 
                 llm = LLMAgent(
                     candidate_name=candidate_name,
@@ -216,6 +236,7 @@ async def handle_interview_stream(websocket: WebSocket):
                 )
 
                 stream_manager = AudioStreamManager(websocket, stream_sid, tts, llm, stt)
+                stream_manager.scoring_rubric = scoring_rubric # store on manager for shutdown
                 greeting = llm.get_initial_greeting()
                 stream_manager.tts_task = asyncio.create_task(stream_manager.run_tts_wrapper(greeting))
 
@@ -240,10 +261,12 @@ async def handle_interview_stream(websocket: WebSocket):
             stream_manager.cancel_tts()
 
         if llm and candidate_id:
+            rubric = getattr(stream_manager, 'scoring_rubric', {}) if stream_manager else {}
             score, dossier = ranker.evaluate_interview(
                 conversation_history=llm.conversation_history,
                 fluency_scores=llm.fluency_scores,
-                off_topic_flags=llm.off_topic_flags
+                off_topic_flags=llm.off_topic_flags,
+                scoring_rubric=rubric
             )
             final_status = getattr(llm, 'candidate_status', 'COMPLETED')
             await post_call_results(candidate_id, score, dossier, status=final_status)

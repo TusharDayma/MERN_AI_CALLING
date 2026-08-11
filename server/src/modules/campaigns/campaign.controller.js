@@ -147,3 +147,31 @@ export const deleteCampaign = async (req, res) => {
     res.status(err.statusCode || 500).json({ error: err.message || 'Failed to delete campaign' });
   }
 };
+
+// Priority 4 — CSV Export
+export const exportCampaignCSV = async (req, res) => {
+  try {
+    const { rows, campaignName } = await campaignService.exportCampaignData(req.user.id, req.params.id);
+    const safeName = campaignName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const csv = [
+      ['Name', 'Email', 'Contact', 'Status', 'AI Score', 'Summary', 'Strengths', 'Weaknesses'].join(','),
+      ...rows.map(r => [
+        `"${(r.name || '').replace(/"/g, '""')}"`,
+        `"${(r.email || '').replace(/"/g, '""')}"`,
+        `"${(r.contact || '').replace(/"/g, '""')}"`,
+        `"${(r.status || '').replace(/"/g, '""')}"`,
+        r.ai_score ?? '',
+        `"${(r.summary || '').replace(/"/g, '""')}"`,
+        `"${(r.strengths || '').replace(/"/g, '""')}"`,
+        `"${(r.weaknesses || '').replace(/"/g, '""')}"`
+      ].join(','))
+    ].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}-rankings.csv"`);
+    res.status(200).send(csv);
+  } catch (err) {
+    console.error('[CampaignController] exportCampaignCSV error:', err);
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to export campaign data' });
+  }
+};

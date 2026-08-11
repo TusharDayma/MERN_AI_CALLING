@@ -15,4 +15,7 @@ router.post('/campaigns/:id/candidates', verifyToken, requireRole('HR'), candida
 // Candidate score override
 router.patch('/:id/score', verifyToken, requireRole('HR'), candidateController.updateCandidateScore);
 
+// Priority 7 — Retry a call for a specific candidate
+router.post('/:id/retry-call', verifyToken, requireRole('HR'), candidateController.retryCall);
+
 export default router;

@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import DashboardLayout from '../layout/DashboardLayout';
-import { 
-  Bot, 
-  Play, 
-  Square, 
-  Sparkles, 
-  CheckCircle2, 
-  Volume2, 
-  Sliders, 
-  MessageSquare, 
+import {
+  Bot,
+  Play,
+  Square,
+  Sparkles,
+  CheckCircle2,
+  Volume2,
+  Sliders,
+  MessageSquare,
   Save,
   Globe,
   UserCheck
@@ -32,7 +32,7 @@ export default function AgentStudio() {
   const [selectedVoice, setSelectedVoice] = useState('en-US-AvaNeural');
   const [selectedPersona, setSelectedPersona] = useState('warm');
   const [speed, setSpeed] = useState(1.0);
-  const [greeting, setGreeting] = useState('Hello {candidate_name}! Thank you for taking the time to speak with me today regarding the {job_title} position.');
+  const [greeting, setGreeting] = useState("Hello {candidate_name},\nI'm calling from Harbinger Group. I'd like to confirm your consent to proceed with the pre-screening process at Harbinger. Would you be willing to participate in the pre-screening to move forward to the next round?");
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
@@ -109,11 +109,10 @@ export default function AgentStudio() {
                 <div
                   key={v.id}
                   onClick={() => setSelectedVoice(v.id)}
-                  className={`border rounded-2xl p-5 cursor-pointer transition-all space-y-3 relative ${
-                    isSelected
+                  className={`border rounded-2xl p-5 cursor-pointer transition-all space-y-3 relative ${isSelected
                       ? 'bg-primary/10 border-primary shadow-md'
                       : 'bg-surface-raised border-border hover:border-border/80'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-2xl">{v.flag}</span>
@@ -147,11 +146,10 @@ export default function AgentStudio() {
                 <div
                   key={p.id}
                   onClick={() => setSelectedPersona(p.id)}
-                  className={`border rounded-2xl p-5 cursor-pointer transition-all space-y-2 ${
-                    isSelected
+                  className={`border rounded-2xl p-5 cursor-pointer transition-all space-y-2 ${isSelected
                       ? 'bg-primary/10 border-primary shadow-md'
                       : 'bg-surface-raised border-border hover:border-border/80'
-                  }`}
+                    }`}
                 >
                   <div className="text-3xl">{p.icon}</div>
                   <h3 className="font-bold text-text-primary text-sm">{p.name}</h3>
@@ -191,11 +189,10 @@ export default function AgentStudio() {
             <div className="flex items-center justify-center">
               <button
                 onClick={handleTestAudio}
-                className={`px-8 py-3.5 rounded-2xl font-bold text-xs flex items-center gap-3 transition-all ${
-                  isPlaying 
-                    ? 'bg-red-500 text-white shadow-lg animate-pulse' 
+                className={`px-8 py-3.5 rounded-2xl font-bold text-xs flex items-center gap-3 transition-all ${isPlaying
+                    ? 'bg-red-500 text-white shadow-lg animate-pulse'
                     : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-md'
-                }`}
+                  }`}
               >
                 {isPlaying ? <Square className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white" />}
                 {isPlaying ? 'Stop Sample Audio' : 'Preview Voice Sample'}

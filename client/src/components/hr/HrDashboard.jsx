@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import DashboardLayout from '../layout/DashboardLayout';
 import api from '../../services/api';
-import { Target, Users, PlayCircle, ArrowUpRight, Activity, Clock3, TrendingUp, Plus } from 'lucide-react';
+import { Target, Users, PlayCircle, ArrowUpRight, Clock3, TrendingUp, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const BAR_HEIGHTS = [40, 62, 48, 75, 58, 86, 70];
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
+} from 'recharts';
 
 export default function HrDashboard() {
-  const [metrics, setMetrics] = useState({ totalCampaigns: 0, activeCampaigns: 0, screenedCandidates: 0 });
+  const [metrics, setMetrics] = useState({
+    totalCampaigns: 0, activeCampaigns: 0, screenedCandidates: 0,
+    statusCounts: {}, avgScore: 0, scoreBuckets: { low: 0, mid: 0, high: 0 }
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,6 +27,24 @@ export default function HrDashboard() {
     };
     fetchMetrics();
   }, []);
+
+  // Priority 6 — Build funnel chart data from statusCounts
+  const statusCounts = metrics.statusCounts || {};
+  const funnelData = [
+    { name: 'Dialled', value: (statusCounts.VOICE_FALLBACK_DISPATCHED || 0) + (statusCounts.COMPLETED || 0) + (statusCounts.SCREENED || 0) },
+    { name: 'Screened', value: (statusCounts.SCREENED || 0) + (statusCounts.COMPLETED || 0) },
+    { name: 'Completed', value: statusCounts.COMPLETED || 0 },
+    { name: 'Score ≥70', value: metrics.scoreBuckets?.high || 0 },
+  ];
+
+  const scoreBuckets = metrics.scoreBuckets || { low: 0, mid: 0, high: 0 };
+  const scoreDistData = [
+    { name: '0–40', value: scoreBuckets.low, color: 'var(--color-danger,  #ef4444)' },
+    { name: '40–70', value: scoreBuckets.mid, color: 'var(--color-warning, #f59e0b)' },
+    { name: '70–100', value: scoreBuckets.high, color: 'var(--color-success, #22c55e)' },
+  ];
+
+  const FUNNEL_COLOR = 'var(--color-primary, #6366f1)';
 
   return (
     <DashboardLayout role="HR">
@@ -67,9 +88,7 @@ export default function HrDashboard() {
                     <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${bg} ${color} border border-current/10`}>
                       <Icon className="h-5 w-5" />
                     </span>
-                    <span className="badge-success text-[11px]">
-                      Live <ArrowUpRight className="h-3 w-3 inline" />
-                    </span>
+                    <span className="badge-success text-[11px]">Live <ArrowUpRight className="h-3 w-3 inline" /></span>
                   </div>
                   <p className="text-sm font-medium text-text-secondary">{label}</p>
                   <h3 className="mt-1 text-4xl font-extrabold tracking-tight text-text-primary">{value}</h3>
@@ -77,60 +96,96 @@ export default function HrDashboard() {
               ))}
             </div>
 
-            {/* Charts row */}
+            {/* Priority 6 — Real charts */}
             <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[2fr_1fr]">
-              {/* Bar chart */}
+              {/* Campaign Funnel Bar Chart */}
               <section className="card-hover p-6">
                 <div className="mb-6 flex items-center justify-between">
                   <div>
-                    <h3 className="text-base font-bold text-text-primary">Screening Activity</h3>
-                    <p className="mt-0.5 text-sm text-text-secondary">Candidate volume over the last 7 days</p>
+                    <h3 className="text-base font-bold text-text-primary">Screening Funnel</h3>
+                    <p className="mt-0.5 text-sm text-text-secondary">Candidate pipeline across all campaigns</p>
                   </div>
-                  <div className="h-9 w-9 rounded-xl bg-primary-light flex items-center justify-center border border-primary/15">
-                    <Activity className="h-4.5 w-4.5 text-primary" />
-                  </div>
+                  {metrics.avgScore > 0 && (
+                    <div className="text-right">
+                      <p className="text-xs text-text-muted uppercase tracking-wider mb-0.5">Avg Score</p>
+                      <p className="text-2xl font-extrabold text-primary">{metrics.avgScore}</p>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex h-44 items-end gap-2 sm:gap-3" aria-label="Screening activity visualization">
-                  {BAR_HEIGHTS.map((height, index) => (
-                    <div key={index} className="flex flex-1 flex-col justify-end gap-2 group">
-                      <div
-                        className="relative w-full rounded-t-lg bg-primary/10 hover:bg-primary/20 transition-colors duration-150 overflow-hidden"
-                        style={{ height: `${height}%` }}
-                      >
-                        <div
-                          className="absolute bottom-0 w-full bg-primary rounded-t-lg transition-all duration-300 group-hover:h-full"
-                          style={{ height: '4px' }}
-                        />
-                      </div>
-                      <span className="text-center text-[10px] font-semibold text-text-muted uppercase tracking-wide">
-                        {DAY_LABELS[index]}
-                      </span>
-                    </div>
-                  ))}
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={funnelData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e5e7eb)" />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fontSize: 11, fill: 'var(--color-text-muted, #9ca3af)' }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        allowDecimals={false}
+                        tick={{ fontSize: 11, fill: 'var(--color-text-muted, #9ca3af)' }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--color-surface, #1e293b)',
+                          border: '1px solid var(--color-border, #334155)',
+                          borderRadius: 8,
+                          color: 'var(--color-text-primary, #f1f5f9)',
+                          fontSize: 12
+                        }}
+                        cursor={{ fill: 'var(--color-primary-light, rgba(99,102,241,0.08))' }}
+                      />
+                      <Bar dataKey="value" fill={FUNNEL_COLOR} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </section>
 
-              {/* Donut */}
+              {/* Score Distribution */}
               <section className="card-hover p-6 flex flex-col">
                 <div className="mb-5 flex items-center justify-between">
-                  <h3 className="text-base font-bold text-text-primary">Engagement Rate</h3>
+                  <h3 className="text-base font-bold text-text-primary">Score Distribution</h3>
                   <TrendingUp className="h-5 w-5 text-success" />
                 </div>
 
-                <div className="flex-1 flex flex-col items-center justify-center">
-                  <div className="relative flex h-36 w-36 items-center justify-center">
-                    {/* Track ring */}
-                    <div className="absolute inset-0 rounded-full border-[12px] border-border" />
-                    {/* Fill ring (~82%) */}
-                    <div
-                      className="absolute inset-0 rounded-full border-[12px] border-primary border-r-transparent border-b-transparent"
-                      style={{ transform: 'rotate(-45deg)' }}
-                    />
-                    <div className="text-center z-10">
-                      <span className="text-3xl font-extrabold text-text-primary">82%</span>
-                      <p className="text-[10px] uppercase tracking-wider text-text-muted mt-0.5">Completion</p>
-                    </div>
+                <div className="flex-1">
+                  <div className="h-40">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={scoreDistData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e5e7eb)" />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 11, fill: 'var(--color-text-muted, #9ca3af)' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tick={{ fontSize: 11, fill: 'var(--color-text-muted, #9ca3af)' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'var(--color-surface, #1e293b)',
+                            border: '1px solid var(--color-border, #334155)',
+                            borderRadius: 8,
+                            color: 'var(--color-text-primary, #f1f5f9)',
+                            fontSize: 12
+                          }}
+                          cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                        />
+                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                          {scoreDistData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
 
