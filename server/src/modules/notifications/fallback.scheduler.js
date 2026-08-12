@@ -36,8 +36,8 @@ export const checkAndTriggerFallbackCalls = async () => {
           }
         });
 
-        // Trigger Exotel outbound call (fallback when no WhatsApp reply)
-        await dispatchExotelCall(candidate.id);
+        // Trigger Exotel outbound call (fallback when no WhatsApp reply) — use TTS_VOICE env or default
+        await dispatchExotelCall(candidate.id, process.env.TTS_VOICE || 'en-US-AvaNeural');
       }
     }
   } catch (error) {

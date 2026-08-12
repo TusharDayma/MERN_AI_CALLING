@@ -167,7 +167,7 @@ export const addCampaignQuestions = async (campaignId, questions) => {
   );
 };
 
-export const launchCampaign = async (campaignId) => {
+export const launchCampaign = async (campaignId, ttsVoice = 'en-US-AvaNeural') => {
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     include: { candidates: true }
@@ -195,11 +195,11 @@ export const launchCampaign = async (campaignId) => {
     data: { status: 'ACTIVE' }
   });
 
-  console.log(`[Campaign Service] Launching campaign ${campaignId}. Dispatching voice calls to ${candidatesCount} candidate(s)...`);
+  console.log(`[Campaign Service] Launching campaign ${campaignId}. Dispatching voice calls to ${candidatesCount} candidate(s) with voice: ${ttsVoice}...`);
 
   for (const candidate of campaign.candidates) {
     try {
-      await dispatchExotelCall(candidate.id);
+      await dispatchExotelCall(candidate.id, ttsVoice);
     } catch (err) {
       console.error(`[Campaign Service] Failed to dispatch voice call to candidate ${candidate.id}:`, err);
     }
@@ -208,7 +208,7 @@ export const launchCampaign = async (campaignId) => {
   return { message: 'Campaign launched. Voice calls dispatched to candidates.' };
 };
 
-export const updateCampaignStatus = async (hrId, campaignId, status) => {
+export const updateCampaignStatus = async (hrId, campaignId, status, ttsVoice = 'en-US-AvaNeural') => {
   const campaign = await prisma.campaign.findFirst({
     where: { id: campaignId, created_by_hr_id: hrId }
   });
@@ -220,7 +220,7 @@ export const updateCampaignStatus = async (hrId, campaignId, status) => {
   }
 
   if (status === 'ACTIVE' && campaign.status !== 'ACTIVE') {
-    return await launchCampaign(campaignId);
+    return await launchCampaign(campaignId, ttsVoice);
   }
 
   await prisma.campaign.update({

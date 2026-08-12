@@ -36,6 +36,16 @@ export const addCampaignQuestions = async (campaignId, questions) => {
 };
 
 export const launchCampaign = async (campaignId) => {
-  const response = await apiClient.post(`/hr/campaigns/${campaignId}/launch`);
+  // Read saved voice config from AgentStudio settings
+  let ttsVoice = 'en-US-AvaNeural';
+  try {
+    const studioConfig = localStorage.getItem('antitalk_agent_studio_config');
+    if (studioConfig) {
+      const parsed = JSON.parse(studioConfig);
+      if (parsed.selectedVoice) ttsVoice = parsed.selectedVoice;
+    }
+  } catch (_) {}
+
+  const response = await apiClient.post(`/hr/campaigns/${campaignId}/launch`, { ttsVoice });
   return response.data;
 };

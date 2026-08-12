@@ -116,8 +116,8 @@ io.on('connection', (socket) => {
 initIO(io);
 
 // Start Server
-server.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend server running on http://127.0.0.1:${PORT}`);
   console.log(`WebSocket /media-stream proxy active -> ws://127.0.0.1:8000`);
   console.log(`Socket.IO live updates active on port ${PORT}`);
 });

@@ -277,6 +277,16 @@ export default function CreateCampaignWizard() {
       setStep(3); return;
     }
 
+    // Read saved voice config from AgentStudio settings
+    let ttsVoice = 'en-US-AvaNeural';
+    try {
+      const studioConfig = localStorage.getItem('antitalk_agent_studio_config');
+      if (studioConfig) {
+        const parsed = JSON.parse(studioConfig);
+        if (parsed.selectedVoice) ttsVoice = parsed.selectedVoice;
+      }
+    } catch (_) {}
+
     setLoading(true);
     setError('');
     try {
@@ -284,7 +294,7 @@ export default function CreateCampaignWizard() {
       const campaignId = campRes.data.id;
       await api.post(`/hr/campaigns/${campaignId}/candidates`, { candidates });
       await api.post(`/hr/campaigns/${campaignId}/questions`, { questions: validQuestions });
-      await api.post(`/hr/campaigns/${campaignId}/launch`);
+      await api.post(`/hr/campaigns/${campaignId}/launch`, { ttsVoice });
       navigate('/hr');
     } catch (err) {
       console.error('[CreateCampaignWizard] Failed to launch campaign:', err);

@@ -99,7 +99,7 @@ const exotelPostV1 = async (path, params) => {
  * Priority 7: Increments call_attempts + sets last_attempt_at.
  * Priority 1: Emits candidate:updated via Socket.IO.
  */
-export const dispatchExotelCall = async (candidateId) => {
+export const dispatchExotelCall = async (candidateId, ttsVoice = 'en-US-AvaNeural') => {
   const candidate = await prisma.candidate.findUnique({
     where: { id: candidateId },
     include: { campaign: { include: { questions: true } } }
@@ -119,7 +119,7 @@ export const dispatchExotelCall = async (candidateId) => {
     return { success: false, reason: 'OUTSIDE_CALLING_HOURS' };
   }
 
-  console.log(`[Telephony Service] Dispatching Exotel voice call to ${candidate.name} (${candidate.contact})...`);
+  console.log(`[Telephony Service] Dispatching Exotel voice call to ${candidate.name} (${candidate.contact}) with voice: ${ttsVoice}...`);
 
   let questionsParam = '[]';
   let scoringRubricStr = '{}';
@@ -144,9 +144,9 @@ export const dispatchExotelCall = async (candidateId) => {
     console.error('[Telephony Service] Failed to serialize campaign questions:', e.message);
   }
 
-  // Pass configuration to the webhook via query parameters
+  // Pass configuration to the webhook via query parameters (including ttsVoice)
   const serverBaseUrl = process.env.PUBLIC_SERVER_URL || 'http://localhost:5000';
-  const exomlUrl = `${serverBaseUrl}/api/webhooks/exotel-answer?candidateId=${candidateId}&questionsJson=${encodeURIComponent(questionsParam)}&scoringRubric=${encodeURIComponent(scoringRubricStr)}`;
+  const exomlUrl = `${serverBaseUrl}/api/webhooks/exotel-answer?candidateId=${candidateId}&questionsJson=${encodeURIComponent(questionsParam)}&scoringRubric=${encodeURIComponent(scoringRubricStr)}&ttsVoice=${encodeURIComponent(ttsVoice)}`;
 
   const payload = {
     From: EXOTEL_CALLER_ID,
@@ -261,7 +261,7 @@ export const handleInboundWhatsAppReply = async ({ from, messageBody }) => {
       }
     });
 
-    await dispatchExotelCall(candidate.id);
+    await dispatchExotelCall(candidate.id, process.env.TTS_VOICE || 'en-US-AvaNeural');
     return { success: true, action: 'VOICE_CALL_DISPATCHED' };
 
   } else if (isNegative) {

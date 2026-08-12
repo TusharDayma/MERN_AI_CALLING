@@ -7,7 +7,7 @@
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-const BASE = "http://localhost:5000";
+const BASE = "http://127.0.0.1:5000";
 let passed = 0, failed = 0, errors = [];
 let HR_TOKEN = "";
 let ADMIN_TOKEN = "";
@@ -145,7 +145,7 @@ async function testJobRoles() {
        `type=${typeof listRes.data}`);
 
   const createRes = await req("POST", "/api/hr/job-roles", {
-    title: "Test QA Engineer",
+    title: "Test QA Engineer " + Date.now(),
     department: "Quality Assurance",
     description: "Responsible for end-to-end quality testing."
   }, HR_TOKEN);
@@ -175,7 +175,7 @@ async function testCampaigns() {
 
   // Create campaign
   const createRes = await req("POST", "/api/hr/campaigns", {
-    name: "Automated Test Campaign",
+    name: "Automated Test Campaign " + Date.now(),
     location: "Remote",
     job_role_id: JOB_ROLE_ID,
     questions: [
@@ -201,7 +201,7 @@ async function testCampaigns() {
     const detailRes = await req("GET", `/api/hr/campaigns/${CAMPAIGN_ID}`, null, HR_TOKEN);
     test("Campaign detail returns 200",         detailRes.status === 200,
          `status=${detailRes.status}`);
-    test("Campaign detail has correct name",    detailRes.data?.name === "Automated Test Campaign",
+    test("Campaign detail has correct name",    detailRes.data?.name?.startsWith("Automated Test Campaign"),
          `name="${detailRes.data?.name}"`);
   }
 }

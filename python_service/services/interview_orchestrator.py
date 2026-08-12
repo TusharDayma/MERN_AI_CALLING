@@ -21,12 +21,13 @@ VAD_MAX_SPEECH_BYTES = 320 * 1500  # Max ~30 sec continuous speech
 class AudioStreamManager:
     """Manages real-time WebSocket audio streaming, VAD, barge-in, and TTS/STT/LLM orchestration."""
 
-    def __init__(self, websocket: WebSocket, stream_sid: str, tts_agent: TTSAgent, llm_agent: LLMAgent, stt_agent: STTAgent):
+    def __init__(self, websocket: WebSocket, stream_sid: str, tts_agent: TTSAgent, llm_agent: LLMAgent, stt_agent: STTAgent, tts_voice: str = "en-US-AvaNeural"):
         self.websocket = websocket
         self.stream_sid = stream_sid
         self.tts = tts_agent
         self.llm = llm_agent
         self.stt = stt_agent
+        self.tts_voice = tts_voice
         
         self.speech_buffer = bytearray()
         self.silence_count = 0
@@ -45,10 +46,10 @@ class AudioStreamManager:
             pass
 
     async def stream_tts(self, text: str):
-        """Streams generated TTS audio chunks to client WebSocket."""
+        """Streams generated TTS audio chunks to client WebSocket using the configured voice."""
         try:
-            await self.send_log(f"Speaking: '{text[:30]}...'")
-            async for media_payload in self.tts.generate_audio_payloads(text):
+            await self.send_log(f"Speaking [{self.tts_voice}]: '{text[:30]}...'")
+            async for media_payload in self.tts.generate_audio_payloads(text, voice=self.tts_voice):
                 if self._tts_cancel_event.is_set():
                     break
                     
@@ -200,6 +201,12 @@ async def handle_interview_stream(websocket: WebSocket):
                     custom_params.get("candidateName") or 
                     custom_params.get("candidate_name", "Candidate")
                 )
+                tts_voice = (
+                    websocket.query_params.get("ttsVoice") or
+                    custom_params.get("ttsVoice") or
+                    custom_params.get("tts_voice") or
+                    "en-US-AvaNeural"
+                )
                 is_scheduled_str = (
                     websocket.query_params.get("is_scheduled") or 
                     custom_params.get("is_scheduled") or 
@@ -225,7 +232,7 @@ async def handle_interview_stream(websocket: WebSocket):
                 questions = [q.get("text", "") for q in questions_raw if q.get("text")]
                 key_criteria = [q.get("key_criteria", "") for q in questions_raw if q.get("text")]
 
-                logger.info(f"[Orchestrator] Stream started. CandidateID={candidate_id}, Questions={len(questions)}, Scheduled={is_scheduled_flag}, Rubric={scoring_rubric}")
+                logger.info(f"[Orchestrator] Stream started. CandidateID={candidate_id}, Questions={len(questions)}, Scheduled={is_scheduled_flag}, Rubric={scoring_rubric}, TTSVoice={tts_voice}")
 
                 llm = LLMAgent(
                     candidate_name=candidate_name,
@@ -235,7 +242,7 @@ async def handle_interview_stream(websocket: WebSocket):
                     is_scheduled=is_scheduled_flag
                 )
 
-                stream_manager = AudioStreamManager(websocket, stream_sid, tts, llm, stt)
+                stream_manager = AudioStreamManager(websocket, stream_sid, tts, llm, stt, tts_voice=tts_voice)
                 stream_manager.scoring_rubric = scoring_rubric # store on manager for shutdown
                 greeting = llm.get_initial_greeting()
                 stream_manager.tts_task = asyncio.create_task(stream_manager.run_tts_wrapper(greeting))

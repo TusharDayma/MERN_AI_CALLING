@@ -6,9 +6,9 @@ const router = express.Router();
 // Centralized webhook routes
 router.post('/call-completed', handleCallCompletedWebhook);
 
-// Exotel ExoML Webhook that builds the <Stream> XML logic and passes scoring rubrics
+// Exotel ExoML Webhook that builds the <Stream> XML logic and passes scoring rubrics + tts voice
 router.post('/exotel-answer', (req, res) => {
-    const { candidateId, questionsJson, scoringRubric } = req.query;
+    const { candidateId, questionsJson, scoringRubric, ttsVoice } = req.query;
     const botSocketUrl = process.env.BOT_WEBSOCKET_URL || 'wss://your-bot/media-stream';
 
     // Format the parameters to forward to the Python Engine
@@ -16,6 +16,7 @@ router.post('/exotel-answer', (req, res) => {
     if (candidateId) queryParams.append('candidateId', candidateId);
     if (questionsJson) queryParams.append('questionsJson', questionsJson);
     if (scoringRubric) queryParams.append('scoring_rubric', scoringRubric);
+    if (ttsVoice) queryParams.append('ttsVoice', ttsVoice);
 
     const fullWebSocketUrl = `${botSocketUrl}?${queryParams.toString()}`;
 

@@ -26,7 +26,7 @@ export const createJobRole = async (req, res) => {
     res.status(201).json(role);
   } catch (err) {
     console.error('[CampaignController] createJobRole error:', err);
-    res.status(500).json({ error: 'Failed to create job role' });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to create job role' });
   }
 };
 
@@ -36,7 +36,7 @@ export const updateJobRole = async (req, res) => {
     res.status(200).json(role);
   } catch (err) {
     console.error('[CampaignController] updateJobRole error:', err);
-    res.status(500).json({ error: 'Failed to update job role' });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to update job role' });
   }
 };
 
@@ -80,7 +80,7 @@ export const createCampaign = async (req, res) => {
       return res.status(400).json({ error: 'Validation Failed', details: err.errors });
     }
     console.error('[CampaignController] createCampaign error:', err);
-    res.status(500).json({ error: 'Failed to create campaign' });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to create campaign' });
   }
 };
 
@@ -120,17 +120,19 @@ export const addQuestions = async (req, res) => {
 
 export const launchCampaign = async (req, res) => {
   try {
-    const result = await campaignService.launchCampaign(req.params.id);
+    const ttsVoice = req.body?.ttsVoice || 'en-US-AvaNeural';
+    const result = await campaignService.launchCampaign(req.params.id, ttsVoice);
     res.status(200).json(result);
   } catch (err) {
     console.error('[CampaignController] launchCampaign error:', err);
-    res.status(500).json({ error: 'Failed to launch campaign' });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to launch campaign' });
   }
 };
 
 export const updateCampaignStatus = async (req, res) => {
   try {
-    const result = await campaignService.updateCampaignStatus(req.user.id, req.params.id, req.body.status);
+    const ttsVoice = req.body?.ttsVoice || 'en-US-AvaNeural';
+    const result = await campaignService.updateCampaignStatus(req.user.id, req.params.id, req.body.status, ttsVoice);
     res.status(200).json(result);
   } catch (err) {
     console.error('[CampaignController] updateCampaignStatus error:', err);

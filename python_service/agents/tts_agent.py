@@ -31,7 +31,7 @@ class TTSAgent:
             voice_id=FISH_AUDIO_VOICE_ID,
         ) if FISH_AUDIO_API_KEY else None
 
-    async def generate_audio_payloads(self, text: str):
+    async def generate_audio_payloads(self, text: str, voice: str = "en-US-AvaNeural"):
         """Synthesizes text and yields 8-bit 8kHz mu-law base64 payloads in 20ms chunks."""
         if not text or not text.strip():
             return
@@ -55,7 +55,8 @@ class TTSAgent:
 
             # Fallback Engine: Edge TTS
             if not mp3_bytes:
-                communicate = edge_tts.Communicate(text, EDGE_TTS_VOICE)
+                target_voice = voice if voice else EDGE_TTS_VOICE
+                communicate = edge_tts.Communicate(text, target_voice)
                 mp3_io = io.BytesIO()
                 async for chunk in communicate.stream():
                     if chunk["type"] == "audio":
