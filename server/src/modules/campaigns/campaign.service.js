@@ -1,5 +1,7 @@
 import prisma from '../../../config/db.js';
 import { dispatchExotelCall } from '../telephony/telephony.service.js';
+import { sendInitialWhatsAppInvite } from '../twilio/twilio.service.js';
+import { sendCandidateScreeningEmail } from '../email/email.service.js';
 
 export const getHRMetrics = async (hrId) => {
   const totalCampaigns = await prisma.campaign.count({ where: { created_by_hr_id: hrId } });
@@ -167,6 +169,33 @@ export const addCampaignQuestions = async (campaignId, questions) => {
   );
 };
 
+/**
+ * Dispatches parallel messaging (Email + WhatsApp) simultaneously to a single candidate.
+ */
+export const dispatchParallelCandidateOutreach = async (candidateId) => {
+  console.log(`[Omnichannel Engine] Dispatching PARALLEL Email + WhatsApp invites for candidate: ${candidateId}`);
+  const [emailResult, waResult] = await Promise.allSettled([
+    sendCandidateScreeningEmail(candidateId),
+    sendInitialWhatsAppInvite(candidateId)
+  ]);
+
+  const emailSuccess = emailResult.status === 'fulfilled' && emailResult.value?.success;
+  const waSuccess = waResult.status === 'fulfilled' && waResult.value?.success;
+
+  if (emailResult.status === 'rejected') {
+    console.error(`[Omnichannel Engine] Email dispatch rejected for candidate ${candidateId}:`, emailResult.reason);
+  }
+  if (waResult.status === 'rejected') {
+    console.error(`[Omnichannel Engine] WhatsApp dispatch rejected for candidate ${candidateId}:`, waResult.reason);
+  }
+
+  return {
+    candidateId,
+    email: emailSuccess ? emailResult.value : { success: false, error: emailResult.reason?.message || emailResult.value?.error },
+    whatsapp: waSuccess ? waResult.value : { success: false, error: waResult.reason?.message || waResult.value?.error }
+  };
+};
+
 export const launchCampaign = async (campaignId, ttsVoice = 'en-US-AvaNeural') => {
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
@@ -195,17 +224,23 @@ export const launchCampaign = async (campaignId, ttsVoice = 'en-US-AvaNeural') =
     data: { status: 'ACTIVE' }
   });
 
-  console.log(`[Campaign Service] Launching campaign ${campaignId}. Dispatching voice calls to ${candidatesCount} candidate(s) with voice: ${ttsVoice}...`);
+  console.log(`[Campaign Service] Parallel Omnichannel Launch for Campaign ${campaignId}: Concurrently dispatching Email & WhatsApp to ${candidatesCount} candidate(s)...`);
 
-  for (const candidate of campaign.candidates) {
-    try {
-      await dispatchExotelCall(candidate.id, ttsVoice);
-    } catch (err) {
-      console.error(`[Campaign Service] Failed to dispatch voice call to candidate ${candidate.id}:`, err);
-    }
-  }
+  // Parallel outreach to all candidates simultaneously
+  const dispatchPromises = campaign.candidates.map(candidate =>
+    dispatchParallelCandidateOutreach(candidate.id)
+  );
 
-  return { message: 'Campaign launched. Voice calls dispatched to candidates.' };
+  const results = await Promise.allSettled(dispatchPromises);
+  const successfulCount = results.filter(r => r.status === 'fulfilled').length;
+
+  console.log(`[Campaign Service] Parallel invitations dispatched to ${successfulCount}/${candidatesCount} candidate(s). Voice calling held as last resort fallback.`);
+
+  return {
+    message: `Campaign launched successfully. Parallel Email and WhatsApp invitations dispatched to ${candidatesCount} candidates. Voice calling is reserved as last-resort fallback.`,
+    totalCandidates: candidatesCount,
+    dispatchedCount: successfulCount
+  };
 };
 
 export const updateCampaignStatus = async (hrId, campaignId, status, ttsVoice = 'en-US-AvaNeural') => {

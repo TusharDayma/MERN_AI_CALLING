@@ -15,7 +15,10 @@ router.post('/campaigns/:id/candidates', verifyToken, requireRole('HR'), candida
 // Candidate score override
 router.patch('/:id/score', verifyToken, requireRole('HR'), candidateController.updateCandidateScore);
 
-// Priority 7 — Retry a call for a specific candidate
+// Priority 7 — Retry a call for a specific candidate (Last resort fallback)
 router.post('/:id/retry-call', verifyToken, requireRole('HR'), candidateController.retryCall);
+
+// Send or resend parallel Email + WhatsApp outreach invitations
+router.post('/:id/send-invites', verifyToken, requireRole('HR'), candidateController.sendCandidateInvites);
 
 export default router;

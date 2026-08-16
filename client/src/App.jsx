@@ -5,6 +5,7 @@ import ErrorBoundary from './components/shared/ErrorBoundary';
 // Landing Page Components
 import LandingPage from './components/LandingPage';
 const DocsPage = lazy(() => import('./pages/DocsPage'));
+const CandidateScreeningPortal = lazy(() => import('./pages/CandidateScreeningPortal'));
 
 // Auth Components
 const AuthPage = lazy(() => import('./pages/auth/AuthPage'));
@@ -35,6 +36,7 @@ export default function App() {
             {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/docs" element={<DocsPage />} />
+          <Route path="/screening/:token" element={<CandidateScreeningPortal />} />
           <Route path="/signup" element={<AuthPage defaultMode="signup" />} />
           <Route path="/signin" element={<AuthPage defaultMode="signin" />} />
           

@@ -40,8 +40,8 @@ function test(name, condition, detail = "") {
   }
 }
 
-async function req(method, path, body = null, token = null) {
-  const headers = { "Content-Type": "application/json" };
+async function req(method, path, body = null, token = null, extraHeaders = {}) {
+  const headers = { "Content-Type": "application/json", ...extraHeaders };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   try {
     const res = await fetch(`${BASE}${path}`, {
@@ -238,20 +238,23 @@ async function testCandidates() {
 async function testWebhook() {
   header("Suite 7: Webhook — Call Completed");
 
+  const webhookHeaders = {
+    'x-internal-webhook-secret': process.env.INTERNAL_WEBHOOK_SECRET || 'super-secret-internal-ai-webhook-key-change-me'
+  };
+
   // Ensure we have a candidate to update
-  // Use a dummy ID that likely won't exist – should return 500
   const dummyRes = await req("POST", "/api/webhooks/call-completed", {
     candidate_id: "non-existent-id",
     ai_score: 75,
     dossier_json: { score: 75, summary: "Test", strengths: ["A"], weaknesses: ["B"], transcript: [] }
-  });
+  }, null, webhookHeaders);
   test("Webhook endpoint is reachable",            [200, 400, 500].includes(dummyRes.status),
        `status=${dummyRes.status}`);
 
   // Missing candidate_id
   const missingId = await req("POST", "/api/webhooks/call-completed", {
     ai_score: 50
-  });
+  }, null, webhookHeaders);
   test("Webhook returns 400 when candidate_id missing", missingId.status === 400,
        `status=${missingId.status}`);
 }

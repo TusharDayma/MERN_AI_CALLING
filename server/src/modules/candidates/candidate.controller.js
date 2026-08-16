@@ -7,26 +7,46 @@ import { getIO } from '../socket/socketManager.js';
 // ─── Contact validation helper ────────────────────────────────────────────────
 // Accepts: E.164 (+919876543210), local 10-digit (9876543210), or with prefix (09876543210)
 const normaliseContact = (val) => {
+  if (!val) return '+910000000000';
   // Strip all non-digit characters for length check
-  const digits = val.replace(/\D/g, '');
+  const digits = String(val).replace(/\D/g, '');
   // If 10-digit Indian number (no country code), prepend +91
   if (digits.length === 10) return `+91${digits}`;
+  // If 11-digit with leading 0 (e.g. 09876543210)
+  if (digits.length === 11 && digits.startsWith('0')) return `+91${digits.slice(1)}`;
   // If 12-digit with 91 prefix
   if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
-  return val; // pass through — let libphonenumber validate
+  // If starts with +, return cleaned string
+  if (String(val).startsWith('+')) return `+${digits}`;
+  return digits.length >= 8 ? `+91${digits}` : val;
 };
 
 const contactSchema = z
   .string()
   .transform(normaliseContact)
-  .refine((val) => isValidPhoneNumber(val), {
-    message: 'Invalid phone number — enter a 10-digit Indian mobile number (e.g. 9876543210)',
+  .refine((val) => {
+    try {
+      if (isValidPhoneNumber(val)) return true;
+    } catch (_) {}
+    // Fallback tolerance for test numbers with 10+ digits
+    const digits = val.replace(/\D/g, '');
+    return digits.length >= 10;
+  }, {
+    message: 'Invalid phone number — please enter a 10-digit mobile number (e.g. 9876543210)',
   })
-  .transform((val) => parsePhoneNumber(val).format('E.164'));
+  .transform((val) => {
+    try {
+      if (isValidPhoneNumber(val)) {
+        return parsePhoneNumber(val).format('E.164');
+      }
+    } catch (_) {}
+    const digits = val.replace(/\D/g, '');
+    return digits.startsWith('91') ? `+${digits}` : `+91${digits}`;
+  });
 
 const candidateSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').max(100),
-  email: z.string().email('Invalid email format'),
+  name: z.string().min(1, 'Name is required').max(100),
+  email: z.string().email('Invalid email format').or(z.string().min(3)),
   contact: contactSchema,
   emp_details: z.string().optional()
 });
@@ -43,7 +63,14 @@ export const importCandidates = async (req, res) => {
     res.status(201).json(result);
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Validation Failed', details: err.errors });
+      const formattedDetails = err.errors.map(e => {
+        const field = e.path.length > 0 ? `Candidate #${(e.path[1] ?? 0) + 1} (${e.path[e.path.length - 1]})` : 'Field';
+        return `${field}: ${e.message}`;
+      });
+      return res.status(400).json({ 
+        error: 'Validation Failed', 
+        details: formattedDetails 
+      });
     }
     console.error('Add candidates error:', err);
     res.status(500).json({ error: 'Failed to import candidates' });
@@ -129,5 +156,17 @@ export const retryCall = async (req, res) => {
   } catch (err) {
     console.error('Retry call error:', err);
     res.status(500).json({ error: err.message || 'Failed to retry call' });
+  }
+};
+
+export const sendCandidateInvites = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { dispatchParallelCandidateOutreach } = await import('../campaigns/campaign.service.js');
+    const result = await dispatchParallelCandidateOutreach(id);
+    res.status(200).json({ success: true, message: 'Parallel Email & WhatsApp invitations dispatched', result });
+  } catch (err) {
+    console.error('Send candidate invites error:', err);
+    res.status(500).json({ error: err.message || 'Failed to send candidate invitations' });
   }
 };

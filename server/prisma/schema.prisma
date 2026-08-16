@@ -39,11 +39,14 @@ enum CandidateStatus {
   PENDING
   WHATSAPP_SENT
   WHATSAPP_REPLIED
+  MAGIC_LINK_SENT
+  INTERVIEW_IN_PROGRESS
   VOICE_FALLBACK_DISPATCHED
   INTEREST_DECLINED
   SCREENED
   COMPLETED
   EXPIRED
+  DATA_ERASED_DPDP
 }
 
 model User {
@@ -137,7 +140,15 @@ model Candidate {
   whatsapp_status     String?
   whatsapp_sent_at   DateTime?
   whatsapp_replied_at DateTime?
+  email_status        String?
+  email_sent_at       DateTime?
   consent_status      String?
+  magic_token         String?         @unique
+  magic_token_expires_at DateTime?
+  dpdp_consent_given  Boolean         @default(false)
+  dpdp_consent_at     DateTime?
+  dpdp_consent_channel String?
+  erasure_requested_at DateTime?
   fallback_call_at    DateTime?
   call_attempts       Int             @default(0)
   last_attempt_at     DateTime?
@@ -145,4 +156,17 @@ model Candidate {
   campaign            Campaign        @relation(fields: [campaign_id], references: [id])
   
   @@map("candidates")
+}
+
+model DpdpAuditLog {
+  id              String        @id @default(uuid())
+  candidate_id    String?
+  candidate_phone String?
+  action          String        // CONSENT_GRANTED | CONSENT_DECLINED | RIGHT_TO_ERASURE_PURGED | DATA_ACCESSED
+  channel         String        // WHATSAPP | WEB_SCREENING | HR_PORTAL
+  details         String?
+  ip_address      String?
+  timestamp       DateTime      @default(now())
+
+  @@map("dpdp_audit_logs")
 }

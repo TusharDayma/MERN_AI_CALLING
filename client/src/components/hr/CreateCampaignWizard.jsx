@@ -299,8 +299,13 @@ export default function CreateCampaignWizard() {
     } catch (err) {
       console.error('[CreateCampaignWizard] Failed to launch campaign:', err);
       let errMsg = err.response?.data?.error || 'Failed to launch campaign. Please check input parameters.';
-      if (err.response?.data?.details && Array.isArray(err.response.data.details)) {
-        errMsg += ': ' + err.response.data.details.join(', ');
+      if (err.response?.data?.details) {
+        if (Array.isArray(err.response.data.details)) {
+          const detailMsgs = err.response.data.details.map(d => typeof d === 'string' ? d : (d.message || JSON.stringify(d)));
+          errMsg += ': ' + detailMsgs.join(' | ');
+        } else if (typeof err.response.data.details === 'string') {
+          errMsg += ': ' + err.response.data.details;
+        }
       }
       setError(errMsg);
     } finally {

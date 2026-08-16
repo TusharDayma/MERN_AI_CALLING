@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import DashboardLayout from '../layout/DashboardLayout';
 import api from '../../services/api';
 import { getSocket } from '../../services/socket';
-import { Users, FileText, Activity, Award, ArrowLeft, Play, Pause, Trash2, Download, RefreshCw, Phone } from 'lucide-react';
+import { Users, FileText, Activity, Award, ArrowLeft, Play, Pause, Trash2, Download, RefreshCw, Phone, Mail, MessageSquare, Send } from 'lucide-react';
 import DossierViewer from './DossierViewer';
 
 export default function CampaignDetails() {
@@ -14,6 +14,7 @@ export default function CampaignDetails() {
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const [retryingId, setRetryingId] = useState(null);
+  const [sendingInviteId, setSendingInviteId] = useState(null);
   const socketRef = useRef(null);
 
   const fetchCampaignDetails = useCallback(async () => {
@@ -109,15 +110,29 @@ export default function CampaignDetails() {
     }
   };
 
-  // Priority 7 — Retry Call
+  // Priority 7 — Retry Call (Last Resort Fallback)
   const handleRetryCall = async (candidateId) => {
     setRetryingId(candidateId);
     try {
       await api.post(`/hr/candidates/${candidateId}/retry-call`);
+      fetchCampaignDetails();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to retry call');
+      alert(err.response?.data?.error || 'Failed to trigger last-resort call');
     } finally {
       setRetryingId(null);
+    }
+  };
+
+  // Dispatch parallel Email + WhatsApp messaging
+  const handleSendInvites = async (candidateId) => {
+    setSendingInviteId(candidateId);
+    try {
+      await api.post(`/hr/candidates/${candidateId}/send-invites`);
+      fetchCampaignDetails();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to dispatch parallel invitations');
+    } finally {
+      setSendingInviteId(null);
     }
   };
 
@@ -242,10 +257,10 @@ export default function CampaignDetails() {
               <thead>
                 <tr>
                   <th>Candidate Name</th>
-                  <th>Contact</th>
+                  <th>Contact & Channels</th>
                   <th>Status</th>
                   <th>AI Score</th>
-                  <th>Attempts</th>
+                  <th>Call Retries</th>
                   <th className="text-right pr-5">Actions</th>
                 </tr>
               </thead>
@@ -256,15 +271,32 @@ export default function CampaignDetails() {
                       <div className="font-semibold text-text-primary">{c.name}</div>
                       <div className="text-xs text-text-muted">{c.email}</div>
                     </td>
-                    <td className="text-text-secondary">{c.contact}</td>
+                    <td>
+                      <div className="text-sm text-text-secondary">{c.contact}</div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border ${
+                          c.email_status === 'SENT' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-surface-raised text-text-muted border-border'
+                        }`} title={c.email_status ? `Email ${c.email_status}` : 'Email Not Dispatched'}>
+                          <Mail className="w-2.5 h-2.5" /> Email
+                        </span>
+                        <span className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border ${
+                          c.whatsapp_status === 'REPLIED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                          c.whatsapp_status === 'SENT' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                          'bg-surface-raised text-text-muted border-border'
+                        }`} title={c.whatsapp_status ? `WhatsApp ${c.whatsapp_status}` : 'WhatsApp Not Dispatched'}>
+                          <MessageSquare className="w-2.5 h-2.5" /> WhatsApp
+                        </span>
+                      </div>
+                    </td>
                     <td>
                       <span className={
                         c.status === 'COMPLETED' ? 'badge-success' :
                           c.status === 'SCREENED' ? 'badge-primary' :
                             c.status === 'EXPIRED' || c.status === 'INTEREST_DECLINED' ? 'badge-danger' :
+                            c.status === 'VOICE_FALLBACK_DISPATCHED' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full text-xs font-semibold' :
                               'badge-warning'
                       }>
-                        {c.status}
+                        {c.status === 'VOICE_FALLBACK_DISPATCHED' ? 'Voice Fallback' : c.status}
                       </span>
                     </td>
                     <td>
@@ -290,24 +322,36 @@ export default function CampaignDetails() {
                     </td>
                     <td className="text-right pr-5">
                       <div className="flex justify-end gap-2">
+                        {c.status !== 'DATA_ERASED_DPDP' && (
+                          <button
+                            onClick={() => handleSendInvites(c.id)}
+                            disabled={sendingInviteId === c.id}
+                            title="Dispatch Parallel Email & WhatsApp Invitations"
+                            className="btn btn-sm bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500 hover:text-white disabled:opacity-50"
+                          >
+                            {sendingInviteId === c.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                            <span>{sendingInviteId === c.id ? 'Inviting...' : 'Invites'}</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => setSelectedCandidate(c)}
                           className="btn btn-sm bg-primary-light text-primary border border-primary/20 hover:bg-primary hover:text-white"
                         >
                           <FileText className="w-3.5 h-3.5" /> Dossier
                         </button>
-                        {/* Priority 7 — Retry Call button */}
+                        {/* Priority 7 — Last Resort Fallback Call button */}
                         {RETRYABLE.includes(c.status) && (
                           <button
                             onClick={() => handleRetryCall(c.id)}
                             disabled={retryingId === c.id}
+                            title="Trigger Last-Resort Telephony Call"
                             className="btn btn-sm bg-warning-bg text-warning border border-warning/20 hover:bg-warning hover:text-white disabled:opacity-50"
                           >
                             {retryingId === c.id
                               ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                               : <Phone className="w-3.5 h-3.5" />
                             }
-                            {retryingId === c.id ? 'Calling...' : 'Retry'}
+                            {retryingId === c.id ? 'Calling...' : 'Call'}
                           </button>
                         )}
                       </div>

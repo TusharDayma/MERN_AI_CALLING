@@ -99,7 +99,7 @@ const exotelPostV1 = async (path, params) => {
  * Priority 7: Increments call_attempts + sets last_attempt_at.
  * Priority 1: Emits candidate:updated via Socket.IO.
  */
-export const dispatchExotelCall = async (candidateId, ttsVoice = 'en-US-AvaNeural') => {
+export const dispatchExotelCall = async (candidateId, ttsVoice = 'en-US-AvaNeural', { bypassCallingHours = false } = {}) => {
   const candidate = await prisma.candidate.findUnique({
     where: { id: candidateId },
     include: { campaign: { include: { questions: true } } }
@@ -110,7 +110,7 @@ export const dispatchExotelCall = async (candidateId, ttsVoice = 'en-US-AvaNeura
   }
 
   // Priority 5 — Calling Hours Guardrail
-  if (!isWithinCallingHours()) {
+  if (!bypassCallingHours && !isWithinCallingHours()) {
     console.log(`[Telephony Service] Outside calling hours — queuing candidate ${candidate.name} for later.`);
     await prisma.candidate.update({
       where: { id: candidateId },

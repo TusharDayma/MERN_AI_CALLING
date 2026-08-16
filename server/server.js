@@ -18,8 +18,12 @@ import campaignRoutes from './src/modules/campaigns/campaign.route.js';
 import candidateRoutes from './src/modules/candidates/candidate.route.js';
 import telephonyRoutes from './src/modules/telephony/telephony.route.js';
 import twilioRoutes from './src/modules/twilio/twilio.route.js';
+import dpdpRoutes from './src/modules/dpdp/dpdp.route.js';
+import screeningRoutes from './src/modules/screening/screening.route.js';
+import emailRoutes from './src/modules/email/email.route.js';
 import webhookRoutes from './src/modules/webhooks/webhook.route.js';
 import { initIO } from './src/modules/socket/socketManager.js';
+import { startFallbackScheduler } from './src/modules/notifications/fallback.scheduler.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -63,6 +67,9 @@ app.use('/api/hr/candidates', candidateRoutes);
 app.use('/api/hr', campaignRoutes); // Maintains backwards compatibility for /metrics and /job-roles
 app.use('/api/telephony', telephonyRoutes); // Exotel telephony domain (WhatsApp + Voice)
 app.use('/api/twilio', twilioRoutes);
+app.use('/api/dpdp', dpdpRoutes); // DPDP Compliance & Right to Erasure endpoints
+app.use('/api/screening', screeningRoutes); // Candidate Magic Link Web Voice Screening endpoints
+app.use('/api/email', emailRoutes); // Free Gmail / SMTP Email Dispatcher endpoints
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -92,8 +99,8 @@ io.use((socket, next) => {
   if (!token) return next(new Error('Authentication error: no token'));
   try {
     const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'super-secret-jwt-key-change-me-in-production'
+      process.env.JWT_SECRET || 'super-secret-jwt-key-change-me-in-production',
+      token
     );
     socket.user = decoded;
     next();
@@ -115,9 +122,10 @@ io.on('connection', (socket) => {
 // Expose io globally via singleton (no req needed)
 initIO(io);
 
-// Start Server
+// Start Server & Omnichannel Fallback Scheduler
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend server running on http://127.0.0.1:${PORT}`);
   console.log(`WebSocket /media-stream proxy active -> ws://127.0.0.1:8000`);
   console.log(`Socket.IO live updates active on port ${PORT}`);
+  startFallbackScheduler(60);
 });
